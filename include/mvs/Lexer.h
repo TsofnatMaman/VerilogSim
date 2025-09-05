@@ -7,6 +7,10 @@ namespace mvs
 {
     enum class TokenKind
     {
+        IDENTIFIER,
+        NUMBER,
+        KEYWORD,
+        SYMBOL,
         END
     };
 
@@ -14,6 +18,8 @@ namespace mvs
     {
         TokenKind type;
         std::string text;
+        int line;
+        int col;
     };
 
     class Lexer
@@ -25,5 +31,20 @@ namespace mvs
 
     private:
         std::string src_;
+        size_t i_ = 0;
+        int line_ = 1;
+        int col_ = 1;
+
+        bool eof() const { return i_ >= src_.size(); }
+        char peek() const { return eof() ? '\0' : src_[i_]; }
+        char get();
+
+        void skip_space_and_comments();
+
+        Token lex_identifier_or_keyword();
+        Token lex_number();
+        Token lex_symbol();
+
+
     };
 }
