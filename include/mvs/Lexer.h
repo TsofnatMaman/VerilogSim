@@ -2,6 +2,7 @@
 
 #include <string>
 #include <vector>
+#include "mvs/utils.h"
 
 namespace mvs
 {
@@ -20,14 +21,15 @@ namespace mvs
         std::string text;
         int line;
         int col;
+        Keyword kw = Keyword::NONE;
+        int number_value;
     };
-
     class Lexer
     {
 
     public:
         explicit Lexer(std::string src) : src_(std::move(src)) {}
-        std::vector<Token> Tokenize() const { return {Token{TokenKind::END, ""}}; }
+        std::vector<Token> Tokenize();
 
     private:
         std::string src_;
@@ -44,6 +46,5 @@ namespace mvs
         Token lex_identifier_or_keyword();
         Token lex_number();
         Token lex_symbol();
-
     };
 }

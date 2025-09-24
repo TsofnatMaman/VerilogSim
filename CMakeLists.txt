@@ -4,6 +4,6 @@ project(MiniVerilogSim VERSION 0.1.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-add_executable(mvsim src/main.cpp)
+add_executable(mvsim src/main.cpp src/Lexer.cpp)
 
 target_include_directories(mvsim PUBLIC include)

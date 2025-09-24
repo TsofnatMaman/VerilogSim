@@ -52,22 +52,72 @@ Token Lexer::lex_identifier_or_keyword()
 {
     int start_line = line_;
     int start_col  = col_;
+    std::string ident;
 
-    std::string text;
-
-    while(is_identifier_char(peek())){
-        text.push_back(get());
+    while (!eof() && is_identifier_char(peek())) {
+        ident += get();
     }
 
-    TokenKind kind = is_keyword(text)? TokenKind::KEYWORD : TokenKind::IDENTIFIER;
-
-    return Token{kind, text, start_line, start_col};
+    Keyword k = to_keyword(ident);
+    if (k != Keyword::NONE) {
+        return Token{TokenKind::KEYWORD, ident, start_line, start_col, k};
+    } else {
+        return Token{TokenKind::IDENTIFIER, ident, start_line, start_col, Keyword::NONE};
+    }
 }
 
-Token Lexer::lex_number(){
+Token Lexer::lex_number() {
     int start_line = line_;
-    int start_col = col_;
+    int start_col  = col_;
+    std::string raw;
 
-    //TODO: complete
-    return Token{};
+    while (!eof() && (std::isdigit(peek()) || peek() == '\'' || peek() == '.' || std::isxdigit(peek()))) {
+        raw += get();
+    }
+
+    int value = parse_number(raw);  // המרה לערך אחיד
+
+    Token tok;
+    tok.type = TokenKind::NUMBER;
+    tok.text = raw;
+    tok.line = start_line;
+    tok.col  = start_col;
+    tok.number_value = value;
+
+    return tok;
 }
+
+Token Lexer::lex_symbol() {
+    int start_line = line_;
+    int start_col  = col_;
+    char c = get();
+
+    return Token{TokenKind::SYMBOL, std::string(1, c), start_line, start_col};
+}
+
+std::vector<Token> Lexer::Tokenize() {
+    std::vector<Token> tokens;
+    while (!eof()) {
+        skip_space_and_comments();
+        if (eof()) break;
+
+        char c = peek();
+
+        if (is_identifier_start(c)) {
+            tokens.push_back(lex_identifier_or_keyword());
+        }
+        else if (std::isdigit(static_cast<unsigned char>(c))) {
+            tokens.push_back(lex_number());
+        }
+        else if (is_symbol_char(c)) {
+            tokens.push_back(lex_symbol());
+        }
+        else {
+            get();
+        }
+    }
+
+    tokens.push_back(Token{TokenKind::END, "", line_, col_});
+    return tokens;
+}
+
