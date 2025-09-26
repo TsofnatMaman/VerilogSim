@@ -3,9 +3,9 @@
 
 using namespace mvs;
 
-char Lexer::get()
+char Lexer::_get()
 {
-    if (eof())
+    if (_eof())
         return '\0';
     char c = src_[i_++];
     if (c == '\n')
@@ -20,42 +20,42 @@ char Lexer::get()
     return c;
 }
 
-void Lexer::skip_space_and_comments()
+void Lexer::_skip_space_and_comments()
 {
-    while (!eof())
+    while (!_eof())
     {
-        char c = peek();
+        char c = _peek();
         if (std::isspace(static_cast<unsigned char>(c)))
         {
-            get();
+            _get();
         }
         else if (c == '/' && i_ + 1 < src_.size() && src_[i_ + 1] == '/')
         {
-            while (!eof() && get() != '\n');
+            while (!_eof() && _get() != '\n');
         }
         else if (c == '/' && i_ + 1 < src_.size() && src_[i_ + 1] == '*')
         {
-            get(); get();
-            while (!eof()) {
-                if (peek() == '*' && i_ + 1 < src_.size() && src_[i_ + 1] == '/') {
-                    get(); get(); 
+            _get(); _get();
+            while (!_eof()) {
+                if (_peek() == '*' && i_ + 1 < src_.size() && src_[i_ + 1] == '/') {
+                    _get(); _get(); 
                     break;
                 }
-                get();
+                _get();
             }
         }
         else break;
     }
 }
 
-Token Lexer::lex_identifier_or_keyword()
+Token Lexer::_lex_identifier_or_keyword()
 {
     int start_line = line_;
     int start_col  = col_;
     std::string ident;
 
-    while (!eof() && is_identifier_char(peek())) {
-        ident += get();
+    while (!_eof() && is_identifier_char(_peek())) {
+        ident += _get();
     }
 
     Keyword k = to_keyword(ident);
@@ -66,13 +66,13 @@ Token Lexer::lex_identifier_or_keyword()
     }
 }
 
-Token Lexer::lex_number() {
+Token Lexer::_lex_number() {
     int start_line = line_;
     int start_col  = col_;
     std::string raw;
 
-    while (!eof() && (std::isdigit(peek()) || peek() == '\'' || peek() == '.' || std::isxdigit(peek()))) {
-        raw += get();
+    while (!_eof() && (std::isdigit(_peek()) || _peek() == '\'' || _peek() == '.' || std::isxdigit(_peek()))) {
+        raw += _get();
     }
 
     int value = parse_number(raw); 
@@ -87,33 +87,33 @@ Token Lexer::lex_number() {
     return tok;
 }
 
-Token Lexer::lex_symbol() {
+Token Lexer::_lex_symbol() {
     int start_line = line_;
     int start_col  = col_;
-    char c = get();
+    char c = _get();
 
     return Token{TokenKind::SYMBOL, std::string(1, c), start_line, start_col};
 }
 
 std::vector<Token> Lexer::Tokenize() {
     std::vector<Token> tokens;
-    while (!eof()) {
-        skip_space_and_comments();
-        if (eof()) break;
+    while (!_eof()) {
+        _skip_space_and_comments();
+        if (_eof()) break;
 
-        char c = peek();
+        char c = _peek();
 
         if (is_identifier_start(c)) {
-            tokens.push_back(lex_identifier_or_keyword());
+            tokens.push_back(_lex_identifier_or_keyword());
         }
         else if (std::isdigit(static_cast<unsigned char>(c))) {
-            tokens.push_back(lex_number());
+            tokens.push_back(_lex_number());
         }
         else if (is_symbol_char(c)) {
-            tokens.push_back(lex_symbol());
+            tokens.push_back(_lex_symbol());
         }
         else {
-            get();
+            _get();
         }
     }
 

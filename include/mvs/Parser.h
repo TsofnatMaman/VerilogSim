@@ -1,42 +1,93 @@
 #pragma once
-#include "lexer.h"
-#include "ast.h"
+#include "mvs/lexer.h"
 #include <vector>
-#include <stdexcept>
+#include <string>
 
 namespace mvs
 {
-
     class Parser
     {
-    private:
-        const std::vector<Token> &tokens_;
-        size_t pos_ = 0;
-
     public:
-        explicit Parser(const std::vector<Token> &tokens) : tokens_(tokens) {}
+        explicit Parser(const std::vector<Token> &tokens);
 
-        const Token &current() const
-        {
-            if (pos_ < tokens_.size())
-                return tokens_[pos_];
-            throw std::out_of_range("Parser: past end of tokens");
-        }
+        // Parses just a minimal module stub: module <ident> ( <ports> ) ... endmodule
+        // Returns true on success (consumed a syntactically valid module stub).
+        bool parseModuleStub() const;
 
-        void advance()
-        {
-            if (pos_ < tokens_.size())
-                pos_++;
-        }
+    private:
+        // mutable because parseModuleStub is const in main; keep state per-instance but allow const method.
+        std::vector<Token> tokens_;
+        mutable size_t idx_ = 0;
 
-        void expect(TokenKind kind)
-        {
-            if (current().type != kind)
-            {
-                throw std::runtime_error("Unexpected token: " + current().text);
-            }
-            advance();
-        }
+        // helpers
+        mutable bool error_ = false;
+        mutable std::string err_msg_;
+
+        const Token &_peek() const;
+        const Token &_current() const;
+        void _advance() const;
+        bool _at_end() const;
+
+        bool _accept_keyword(const std::string &kw) const;
+        bool _accept_symbol(const std::string &sym) const;
+        bool _accept_identifier(std::string &out) const;
+        bool _expect_keyword(const std::string &kw) const;
+        bool _expect_symbol(const std::string &sym) const;
+        bool _expect_identifier(std::string &out) const;
+
+        // parsing helpers
+        void _skip_end_tokens() const;
+
+        bool _parse_port_list() const;
     };
+}
 
-} // namespace mvs
+// Start Parsing Module Stub
+//           │
+//           ▼
+//    idx_ = 0, error_ = false
+//           │
+//           ▼
+//    peek() / current() → get first token
+//           │
+//           ▼
+// expect_keyword("module") ?
+//    │                 │
+//    ▼                 ▼
+//   ✅                  ❌
+//  advance()            set error_ = true
+//                       store err_msg_
+//                       return false
+//           │
+//           ▼
+// accept_identifier(module_name) ?
+//    │                 │
+//    ▼                 ▼
+//   ✅                  ❌
+//  advance()            set error_ = true
+//                       store err_msg_
+//                       return false
+//           │
+//           ▼
+// parse_port_list() ?
+//    │                 │
+//    ▼                 ▼
+//   ✅                  ❌
+//  advance()            set error_ = true
+//                       store err_msg_
+//                       return false
+//           │
+//           ▼
+// skip_end_tokens()
+//           │
+//           ▼
+// expect_keyword("endmodule") ?
+//    │                 │
+//    ▼                 ▼
+//   ✅                  ❌
+//  advance()            set error_ = true
+//                       store err_msg_
+//                       return false
+//           │
+//           ▼
+// All checks passed → return true

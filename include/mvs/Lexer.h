@@ -37,14 +37,14 @@ namespace mvs
         int line_ = 1;
         int col_ = 1;
 
-        bool eof() const { return i_ >= src_.size(); }
-        char peek() const { return eof() ? '\0' : src_[i_]; }
-        char get();
+        bool _eof() const { return i_ >= src_.size(); }
+        char _peek() const { return _eof() ? '\0' : src_[i_]; }
+        char _get();
 
-        void skip_space_and_comments();
+        void _skip_space_and_comments();
 
-        Token lex_identifier_or_keyword();
-        Token lex_number();
-        Token lex_symbol();
+        Token _lex_identifier_or_keyword();
+        Token _lex_number();
+        Token _lex_symbol();
     };
 }
