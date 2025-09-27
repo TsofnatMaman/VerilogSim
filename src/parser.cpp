@@ -5,6 +5,8 @@
 
 namespace mvs
 {
+    Parser::Parser(const std::vector<Token> &tokens):tokens_(tokens){}
+
     bool Parser::_at_end() const
     {
         return idx_ >= tokens_.size();

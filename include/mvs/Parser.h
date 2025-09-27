@@ -24,7 +24,6 @@ namespace mvs
         mutable std::string err_msg_;
 
         const Token &_current() const;
-        const Token &_current() const;
         void _advance() const;
         bool _at_end() const;
 
