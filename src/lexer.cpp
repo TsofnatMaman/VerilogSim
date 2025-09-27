@@ -24,7 +24,7 @@ void Lexer::_skip_space_and_comments()
 {
     while (!_eof())
     {
-        char c = _peek();
+        char c = _current();
         if (std::isspace(static_cast<unsigned char>(c)))
         {
             _get();
@@ -37,7 +37,7 @@ void Lexer::_skip_space_and_comments()
         {
             _get(); _get();
             while (!_eof()) {
-                if (_peek() == '*' && i_ + 1 < src_.size() && src_[i_ + 1] == '/') {
+                if (_current() == '*' && i_ + 1 < src_.size() && src_[i_ + 1] == '/') {
                     _get(); _get(); 
                     break;
                 }
@@ -54,7 +54,7 @@ Token Lexer::_lex_identifier_or_keyword()
     int start_col  = col_;
     std::string ident;
 
-    while (!_eof() && is_identifier_char(_peek())) {
+    while (!_eof() && is_identifier_char(_current())) {
         ident += _get();
     }
 
@@ -71,7 +71,7 @@ Token Lexer::_lex_number() {
     int start_col  = col_;
     std::string raw;
 
-    while (!_eof() && (std::isdigit(_peek()) || _peek() == '\'' || _peek() == '.' || std::isxdigit(_peek()))) {
+    while (!_eof() && (std::isdigit(_current()) || _current() == '\'' || _current() == '.' || std::isxdigit(_current()))) {
         raw += _get();
     }
 
@@ -101,7 +101,7 @@ std::vector<Token> Lexer::Tokenize() {
         _skip_space_and_comments();
         if (_eof()) break;
 
-        char c = _peek();
+        char c = _current();
 
         if (is_identifier_start(c)) {
             tokens.push_back(_lex_identifier_or_keyword());

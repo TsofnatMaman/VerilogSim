@@ -23,15 +23,28 @@ namespace mvs
         mutable bool error_ = false;
         mutable std::string err_msg_;
 
-        const Token &_peek() const;
+        const Token &_current() const;
         const Token &_current() const;
         void _advance() const;
         bool _at_end() const;
 
-        bool _accept_keyword(const std::string &kw) const;
+        bool _accept_keyword(const Keyword kw) const;
         bool _accept_symbol(const std::string &sym) const;
         bool _accept_identifier(std::string &out) const;
-        bool _expect_keyword(const std::string &kw) const;
+
+        template <typename AcceptFunc>
+        bool _expect_generic(AcceptFunc accept, const std::string &msg) const
+        {
+            if (accept())
+            {
+                return true;
+            }
+            error_ = true;
+            err_msg_ = msg;
+            return false;
+        }
+
+        bool _expect_keyword(const Keyword kw) const;
         bool _expect_symbol(const std::string &sym) const;
         bool _expect_identifier(std::string &out) const;
 

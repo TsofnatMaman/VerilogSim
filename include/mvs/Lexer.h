@@ -38,7 +38,7 @@ namespace mvs
         int col_ = 1;
 
         bool _eof() const { return i_ >= src_.size(); }
-        char _peek() const { return _eof() ? '\0' : src_[i_]; }
+        char _current() const { return _eof() ? '\0' : src_[i_]; }
         char _get();
 
         void _skip_space_and_comments();
