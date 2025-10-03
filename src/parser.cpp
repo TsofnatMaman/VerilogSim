@@ -1,11 +1,11 @@
 #include <stdexcept>
-
+#include <vector>
 #include "mvs/parser.hpp"
 #include "mvs/lexer.hpp"
 
 namespace mvs
 {
-    Parser::Parser(const std::vector<Token> &tokens):tokens_(tokens){}
+    Parser::Parser(const std::vector<Token> &tokens) : tokens_(tokens) {}
 
     bool Parser::_at_end() const
     {
@@ -23,7 +23,7 @@ namespace mvs
         return tokens_[idx_];
     }
 
-    void Parser::_advance() const
+    void Parser::_advance()
     {
         if (!_at_end())
         {
@@ -31,13 +31,13 @@ namespace mvs
         }
     }
 
-    void Parser::_skip_end_tokens() const
+    void Parser::_skip_end_tokens()
     {
         while (!_at_end() && _current().type == TokenKind::END)
             _advance();
     }
 
-    bool Parser::_accept_keyword(const Keyword kw) const
+    bool Parser::_accept_keyword(const Keyword kw)
     {
         if (!_at_end() && _current().type == TokenKind::KEYWORD && _current().kw == kw)
         {
@@ -47,7 +47,7 @@ namespace mvs
         return false;
     }
 
-    bool Parser::_accept_symbol(const std::string &sym) const
+    bool Parser::_accept_symbol(const std::string &sym)
     {
         if (!_at_end() && _current().type == TokenKind::SYMBOL && _current().text == sym)
         {
@@ -57,7 +57,7 @@ namespace mvs
         return false;
     }
 
-    bool Parser::_accept_identifier(std::string &out) const
+    bool Parser::_accept_identifier(std::string &out)
     {
         if (!_at_end() && _current().type == TokenKind::IDENTIFIER)
         {
@@ -68,19 +68,19 @@ namespace mvs
         return false;
     }
 
-    bool Parser::_expect_keyword(const Keyword kw) const
+    bool Parser::_expect_keyword(const Keyword kw)
     {
         return _expect_generic([&]()
                                { return _accept_keyword(kw); }, "Expected keyword: " + std::to_string(static_cast<int>(kw)));
     }
 
-    bool Parser::_expect_symbol(const std::string &sym) const
+    bool Parser::_expect_symbol(const std::string &sym)
     {
         return _expect_generic([&]()
                                { return _accept_symbol(sym); }, "Expected symbol: " + sym);
     }
 
-    bool Parser::_expect_identifier(std::string &out) const
+    bool Parser::_expect_identifier(std::string &out)
     {
         return _expect_generic([&]()
                                { return _accept_identifier(out); }, "Expected identifier");
@@ -88,7 +88,7 @@ namespace mvs
 
     // parse comma-separated identifiers inside parentheses:
     // ( a , b , c )
-    bool Parser::_parse_port_list() const
+    bool Parser::_is_port_list_valid()
     {
         if (!_expect_symbol("("))
         {
@@ -126,7 +126,7 @@ namespace mvs
         return _expect_symbol(")");
     }
 
-    bool Parser::parseModuleStub() const
+    bool Parser::isModuleStubValid()
     {
         // reset state
         idx_ = 0;
@@ -171,4 +171,54 @@ namespace mvs
         return false;
     }
 
+    std::optional<std::vector<Port>> Parser::_parse_port_list()
+    {
+        // if (!_expect_symbol("("))
+        // {
+        //     return false;
+        // }
+
+        // // Accept optional empty list: allow immediate ')'
+        // if (_accept_symbol(")"))
+        // {
+        //     return true; // Empty list
+        // }
+
+        // while (!_at_end())
+        // {
+        //     Port p; // Create a new Port struct
+
+        //     // Parse Port Direction (optional)
+        //     if (_accept_keyword(Keyword::INPUT))
+        //     {
+        //         p.dir = PortDir::INPUT;
+        //     }
+        //     else if (_accept_keyword(Keyword::OUTPUT))
+        //     {
+        //         p.dir = PortDir::OUTPUT;
+        //     }
+        //     // Note: Default PortDir::INPUT is already set in the Port struct.
+
+        //     // Expect Port Identifier (and save its name)
+        //     if (!_expect_identifier(p.name))
+        //     {
+        //         return false;
+        //     }
+
+        //     out_ports.push_back(std::move(p)); // Save the constructed port
+
+        //     // After identifier: either , or )
+        //     if (_accept_symbol(")"))
+        //     {
+        //         return true; // End of list
+        //     }
+        //     if (!_expect_symbol(","))
+        //     {
+        //         return false; // Error: expected comma or ')'
+        //     }
+        // }
+
+        // // If we reach the end of the tokens without a closing ')'
+        // return _expect_symbol(")"); // Will likely fail and set error_
+    }
 } // namespace mvs

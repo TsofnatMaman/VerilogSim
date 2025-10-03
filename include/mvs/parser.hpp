@@ -1,5 +1,7 @@
 #pragma once
 #include "mvs/lexer.hpp"
+#include "mvs/ast.hpp"
+#include <optional>
 #include <vector>
 #include <string>
 
@@ -12,27 +14,29 @@ namespace mvs
 
         // Parses just a minimal module stub: module <ident> ( <ports> ) ... endmodule
         // Returns true on success (consumed a syntactically valid module stub).
-        bool parseModuleStub() const;
+        bool isModuleStubValid();
+
+        std::optional<Module> parseModule();
 
     private:
         // mutable because parseModuleStub is const in main; keep state per-instance but allow const method.
         std::vector<Token> tokens_;
-        mutable size_t idx_ = 0;
+        size_t idx_ = 0;
 
         // helpers
-        mutable bool error_ = false;
-        mutable std::string err_msg_;
+        bool error_ = false;
+        std::string err_msg_;
 
         const Token &_current() const;
-        void _advance() const;
+        void _advance();
         bool _at_end() const;
 
-        bool _accept_keyword(const Keyword kw) const;
-        bool _accept_symbol(const std::string &sym) const;
-        bool _accept_identifier(std::string &out) const;
+        bool _accept_keyword(const Keyword kw);
+        bool _accept_symbol(const std::string &sym);
+        bool _accept_identifier(std::string &out);
 
         template <typename AcceptFunc>
-        bool _expect_generic(AcceptFunc accept, const std::string &msg) const
+        bool _expect_generic(AcceptFunc accept, const std::string &msg)
         {
             if (accept())
             {
@@ -43,14 +47,15 @@ namespace mvs
             return false;
         }
 
-        bool _expect_keyword(const Keyword kw) const;
-        bool _expect_symbol(const std::string &sym) const;
-        bool _expect_identifier(std::string &out) const;
+        bool _expect_keyword(const Keyword kw);
+        bool _expect_symbol(const std::string &sym);
+        bool _expect_identifier(std::string &out);
 
         // parsing helpers
-        void _skip_end_tokens() const;
+        void _skip_end_tokens();
 
-        bool _parse_port_list() const;
+        std::optional<std::vector<Port>> Parser::_parse_port_list();
+        bool _is_port_list_valid();
     };
 }
 

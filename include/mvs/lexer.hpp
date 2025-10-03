@@ -6,6 +6,7 @@
 
 namespace mvs
 {
+    //TODO: may do it abstract and implement for all token kind instead of storage all option variables
     enum class TokenKind
     {
         IDENTIFIER,
@@ -47,4 +48,4 @@ namespace mvs
         Token _lex_number();
         Token _lex_symbol();
     };
-}
+} // namespace mvs
