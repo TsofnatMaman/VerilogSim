@@ -18,7 +18,7 @@ namespace mvs
 
         std::optional<Module> parseModule();
 
-    // private:
+        // private:
         std::vector<Token> tokens_;
         size_t idx_ = 0;
 
@@ -33,6 +33,7 @@ namespace mvs
         bool _accept_keyword(const Keyword kw);
         bool _accept_symbol(const std::string &sym);
         bool _accept_identifier(std::string &out);
+        bool _accept_number(int &out);
 
         template <typename AcceptFunc>
         bool _expect_generic(AcceptFunc accept, const std::string &msg)
@@ -49,11 +50,20 @@ namespace mvs
         bool _expect_keyword(const Keyword kw);
         bool _expect_symbol(const std::string &sym);
         bool _expect_identifier(std::string &out);
+        bool _expect_number(int &out);
 
         // parsing helpers
         void _skip_end_tokens();
 
         std::optional<std::vector<Port>> _parse_port_list();
+        std::optional<std::vector<Wire>> _parse_wire_declaration();
+        std::optional<Assign> _parse_assign_statement();
+
+        std::optional<ExprPtr> Parser::_parse_expression();
+        std::optional<ExprPtr> Parser::_parse_unary();
+        std::optional<ExprPtr> Parser::_parse_binary(int precedence);
+        int Parser::_get_precedence(const std::string &op) const;
+
         bool _is_port_list_valid();
     };
 }

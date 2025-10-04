@@ -97,5 +97,6 @@ namespace mvs
         return std::stoi(digits, nullptr, base_int);
         ;
     }
+    
 
 } // namespace mvs
