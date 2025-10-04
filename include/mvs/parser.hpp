@@ -18,8 +18,7 @@ namespace mvs
 
         std::optional<Module> parseModule();
 
-    private:
-        // mutable because parseModuleStub is const in main; keep state per-instance but allow const method.
+    // private:
         std::vector<Token> tokens_;
         size_t idx_ = 0;
 
@@ -54,7 +53,7 @@ namespace mvs
         // parsing helpers
         void _skip_end_tokens();
 
-        std::optional<std::vector<Port>> Parser::_parse_port_list();
+        std::optional<std::vector<Port>> _parse_port_list();
         bool _is_port_list_valid();
     };
 }

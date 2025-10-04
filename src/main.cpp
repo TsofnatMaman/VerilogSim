@@ -12,7 +12,7 @@
 int main(int argc, char** argv) {
 
     // start
-    std::cout << "MiniVerilogSim starting..." << MVS_VERSION << std::endl;
+    std::cout << "MyVerilogSim starting..." << MVS_VERSION << std::endl;
 
     // check args and open file
     if(argc < 2) {

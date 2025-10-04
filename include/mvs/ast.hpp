@@ -9,7 +9,8 @@ namespace mvs
     enum class PortDir
     {
         INPUT,
-        OUTPUT
+        OUTPUT,
+        INOUT
     };
 
     struct ExprIdent;
@@ -89,4 +90,4 @@ namespace mvs
         std::vector<Assign> assigns;
     };
 
-}
+} // namespace mvs

@@ -90,40 +90,19 @@ namespace mvs
     // ( a , b , c )
     bool Parser::_is_port_list_valid()
     {
-        if (!_expect_symbol("("))
-        {
-            return false;
-        }
+        // We want to check validity without consuming tokens permanently.
+        auto saved_idx = idx_;
+        auto saved_error = error_;
+        auto saved_err_msg = err_msg_;
 
-        // Accept optional empty list: allow immediate ')'
-        if (_expect_symbol(")"))
-        {
-            // empty list
-            return true;
-        }
+        auto ports = _parse_port_list();
 
-        while (!_at_end())
-        {
-            std::string name;
+        // restore parser state (this function is only a validator, not a consumer)
+        idx_ = saved_idx;
+        error_ = saved_error;
+        err_msg_ = saved_err_msg;
 
-            // optional: port dir
-            _accept_keyword(Keyword::INPUT) || _accept_keyword(Keyword::OUTPUT);
-
-            if (!_expect_identifier(name))
-            {
-                return false;
-            }
-
-            // after identifier: either , or )
-            if (_accept_symbol(")"))
-            {
-                return true;
-            }
-            if (!_expect_symbol(","))
-                return false;
-        }
-
-        return _expect_symbol(")");
+        return ports.has_value();
     }
 
     bool Parser::isModuleStubValid()
@@ -147,7 +126,7 @@ namespace mvs
         }
 
         // '(' portlist ')'
-        if (!_parse_port_list())
+        if (!_is_port_list_valid())
         {
             return false;
         }
@@ -173,52 +152,61 @@ namespace mvs
 
     std::optional<std::vector<Port>> Parser::_parse_port_list()
     {
-        // if (!_expect_symbol("("))
-        // {
-        //     return false;
-        // }
+        std::vector<Port> ports;
+        if (!_expect_symbol("("))
+        {
+            return std::nullopt;
+        }
 
-        // // Accept optional empty list: allow immediate ')'
-        // if (_accept_symbol(")"))
-        // {
-        //     return true; // Empty list
-        // }
+        // Accept optional empty list: allow immediate ')'
+        if (_accept_symbol(")"))
+        {
+            return ports; // Empty list
+        }
 
-        // while (!_at_end())
-        // {
-        //     Port p; // Create a new Port struct
+        while (!_at_end())
+        {
+            Port p; // Create a new Port struct
 
-        //     // Parse Port Direction (optional)
-        //     if (_accept_keyword(Keyword::INPUT))
-        //     {
-        //         p.dir = PortDir::INPUT;
-        //     }
-        //     else if (_accept_keyword(Keyword::OUTPUT))
-        //     {
-        //         p.dir = PortDir::OUTPUT;
-        //     }
-        //     // Note: Default PortDir::INPUT is already set in the Port struct.
+            // Parse Port Direction (optional)
+            if (_accept_keyword(Keyword::INPUT))
+            {
+                p.dir = PortDir::INPUT;
+            }
+            else if (_accept_keyword(Keyword::OUTPUT))
+            {
+                p.dir = PortDir::OUTPUT;
+            }
+            else if (_accept_keyword(Keyword::INOUT))
+            {
+                p.dir = PortDir::INOUT;
+            }
+            // TODO: if you support ranges like [7:0], parse here:
 
-        //     // Expect Port Identifier (and save its name)
-        //     if (!_expect_identifier(p.name))
-        //     {
-        //         return false;
-        //     }
+            // Expect Port Identifier (and save its name)
+            if (!_expect_identifier(p.name))
+            {
+                return std::nullopt;
+            }
 
-        //     out_ports.push_back(std::move(p)); // Save the constructed port
+            ports.push_back(std::move(p)); // Save the constructed port
 
-        //     // After identifier: either , or )
-        //     if (_accept_symbol(")"))
-        //     {
-        //         return true; // End of list
-        //     }
-        //     if (!_expect_symbol(","))
-        //     {
-        //         return false; // Error: expected comma or ')'
-        //     }
-        // }
+            // After identifier: either , or )
+            if (_accept_symbol(")"))
+            {
+                return ports; // End of list
+            }
+            if (!_expect_symbol(","))
+            {
+                return std::nullopt; // Error: expected comma or ')'
+            }
+        }
 
-        // // If we reach the end of the tokens without a closing ')'
-        // return _expect_symbol(")"); // Will likely fail and set error_
+        // If we reach the end of the tokens without a closing ')'
+        return _expect_symbol(")") ? std::make_optional(ports) : std::nullopt; // Will likely fail and set error_
+    }
+
+    std::optional<Module> Parser::parseModule(){
+        return std::nullopt;
     }
 } // namespace mvs

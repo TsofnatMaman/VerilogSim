@@ -11,6 +11,7 @@ namespace mvs
         ENDMODULE,
         INPUT,
         OUTPUT,
+        INOUT,
         WIRE,
         ASSIGN,
         NONE
@@ -51,6 +52,7 @@ namespace mvs
             {"endmodule", Keyword::ENDMODULE},
             {"input", Keyword::INPUT},
             {"output", Keyword::OUTPUT},
+            {"inout", Keyword::INOUT},
             {"wire", Keyword::WIRE},
             {"assign", Keyword::ASSIGN}};
 
