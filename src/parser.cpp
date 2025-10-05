@@ -199,7 +199,12 @@ namespace mvs
             {
                 p.dir = PortDir::INOUT;
             }
-            // TODO: if you support ranges like [7:0], parse here:
+            // support ranges like [7:0], parse here:
+            std::optional<int> width = _parse_bus_width();
+            if (width.has_value())
+            {
+                p.width = width.value();
+            }
 
             // Expect Port Identifier (and save its name)
             if (!_expect_identifier(p.name))
@@ -226,25 +231,27 @@ namespace mvs
 
     std::optional<std::vector<Wire>> Parser::_parse_wire_declaration()
     {
-        // TODO: optional: support [] to width
         std::vector<Wire> res;
 
         std::string wire_name;
-        if (!_expect_identifier(wire_name))
-        {
-            return std::nullopt;
-        }
-        res.push_back({wire_name});
 
-        while (_accept_symbol(","))
+        // optional: support [] to width
+        int width = 32;
+        std::optional<int> parsed_width = _parse_bus_width();
+        if (parsed_width.has_value())
+        {
+            width = parsed_width.value();
+        }
+
+        do
         {
             if (!_expect_identifier(wire_name))
             {
                 return std::nullopt;
             }
 
-            res.push_back({wire_name});
-        }
+            res.push_back({wire_name, width});
+        } while (_accept_symbol(","));
 
         if (!_expect_symbol(";"))
         {
@@ -262,7 +269,7 @@ namespace mvs
 
     std::optional<ExprPtr> Parser::_parse_unary()
     {
-        // 1. handle one element operator (ex ~)
+        // handle one element operator (ex ~)
         if (_current().type == TokenKind::SYMBOL && _accept_symbol("~"))
         {
             // calc the follow expression
@@ -277,7 +284,7 @@ namespace mvs
             return unary;
         }
 
-        // 2. handle identifier variables
+        // handle identifier variables
         std::string identifier_name;
         if (_accept_identifier(identifier_name))
         {
@@ -295,7 +302,7 @@ namespace mvs
             return expr;
         }
 
-        // 3. handle parenthesis ( <expression> )
+        // handle parenthesis ( <expression> )
         if (_accept_symbol("("))
         {
             auto expr = _parse_expression(); // analize full expression inside
@@ -338,31 +345,31 @@ namespace mvs
 
         while (!_at_end())
         {
-            // 1. check current operator
+            // check current operator
             char op = _current().text[0];
             int current_prec = _get_precedence(op);
 
-            // 2. Precedence: If the precedence is lower than the current precedence, stop the bipartite analysis
+            // Precedence: If the precedence is lower than the current precedence, stop the bipartite analysis
             if (current_prec <= precedence)
                 break;
             if (current_prec == 0)
                 break; // not operator
 
-            // 3. consume operator
+            // consume operator
             _advance();
 
-            // 4. Parse the right-hand side as a single-term expression or higher precedence
+            // Parse the right-hand side as a single-term expression or higher precedence
             auto rhs = _parse_binary(current_prec);
             if (!rhs.has_value())
                 return std::nullopt;
 
-            // 5. build new node ExprBinary
+            // build new node ExprBinary
             auto binary = std::make_shared<ExprBinary>();
             binary->op = op;
             binary->lhs = std::move(lhs.value());
             binary->rhs = std::move(rhs.value());
 
-            // 7. Make the new expression the left-hand side (lhs) for the next iteration of the loop
+            // Make the new expression the left-hand side (lhs) for the next iteration of the loop
             lhs = binary;
         }
 
@@ -373,20 +380,20 @@ namespace mvs
     {
         Assign assign_stmt;
 
-        // 1. Expect the LHS identifier (the target of the assignment)
+        // Expect the LHS identifier (the target of the assignment)
         // NOTE: In full Verilog, this could be a concatenation, but for simplicity, we expect an identifier
         if (!_expect_identifier(assign_stmt.lhs))
         {
             return std::nullopt;
         }
 
-        // 2. Expect the assignment symbol '='
+        // Expect the assignment symbol '='
         if (!_expect_symbol("="))
         {
             return std::nullopt;
         }
 
-        // 3. Parse the full expression on the RHS
+        // Parse the full expression on the RHS
         // This calls the expression parsing hierarchy to build the AST for the RHS.
         auto rhs_expr = _parse_expression();
         if (!rhs_expr.has_value())
@@ -396,7 +403,7 @@ namespace mvs
         }
         assign_stmt.rhs = std::move(rhs_expr.value());
 
-        // 4. Expect the semicolon ';' to terminate the statement
+        // Expect the semicolon ';' to terminate the statement
         if (!_expect_symbol(";"))
         {
             return std::nullopt;
@@ -404,6 +411,48 @@ namespace mvs
 
         // Return the successfully constructed Assign object
         return assign_stmt;
+    }
+
+    std::optional<int> Parser::_parse_bus_width()
+    {
+        if (!_accept_symbol("["))
+        {
+            return std::nullopt;
+        }
+
+        int msb = 0; // Most Significant Bit
+        if (!_expect_number(msb))
+        {
+            return std::nullopt;
+        }
+
+        if (!_expect_symbol(":"))
+        {
+            return std::nullopt;
+        }
+
+        int lsb = 0; // Least Significant Bit
+        if (!_expect_number(lsb))
+        {
+            return std::nullopt;
+        }
+
+        if (!_expect_symbol("]"))
+        {
+            return std::nullopt;
+        }
+
+        // calc width- width = MSB - LSB + 1.
+        // for example: [7:0] => 7 - 0 + 1 = 8
+        int width = msb - lsb + 1;
+        if (width <= 0)
+        {
+            error_ = true;
+            err_msg_ = "Bus width cannot be zero or negative: [" + std::to_string(msb) + ":" + std::to_string(lsb) + "]";
+            return std::nullopt;
+        }
+
+        return width;
     }
 
     std::optional<Module> Parser::parseModule()

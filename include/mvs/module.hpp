@@ -76,11 +76,13 @@ namespace mvs
     {
         PortDir dir = PortDir::INPUT;
         std::string name;
+        int width = 32; 
     };
 
     struct Wire
     {
         std::string name;
+        int width = 32; 
     };
 
     struct Module
@@ -89,7 +91,6 @@ namespace mvs
         std::vector<Port> ports;
         std::vector<Wire> wires;
         std::vector<Assign> assigns;
-        std::unordered_map<std::string, int> symbols;
     };
 
 } // namespace mvs
