@@ -1,6 +1,7 @@
 #pragma once
 #include "mvs/lexer.hpp"
 #include "mvs/module.hpp"
+#include "mvs/error.hpp"
 #include <optional>
 #include <vector>
 #include <string>
@@ -18,22 +19,30 @@ namespace mvs
 
         std::optional<Module> parseModule();
 
+        const std::optional<Error> &getError() const
+        {
+            return error_info_;
+        }
+
         // private:
         std::vector<Token> tokens_;
         size_t idx_ = 0;
 
-        // helpers
-        bool error_ = false;
-        std::string err_msg_;
+        std::optional<Error> error_info_;
 
         std::string getErrorMessage() const
         {
-            return err_msg_;
+            return error_info_.value().toString();
         }
 
         bool hasError() const
         {
-            return error_;
+            return error_info_.has_value();
+        }
+
+        void _set_error(std::string msg)
+        {
+            error_info_ = Error{msg, _current().line};
         }
 
         const Token &_current() const;
@@ -52,8 +61,7 @@ namespace mvs
             {
                 return true;
             }
-            error_ = true;
-            err_msg_ = msg;
+            _set_error(msg);
             return false;
         }
 

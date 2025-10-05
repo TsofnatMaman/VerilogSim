@@ -110,15 +110,13 @@ namespace mvs
     {
         // We want to check validity without consuming tokens permanently.
         auto saved_idx = idx_;
-        auto saved_error = error_;
-        auto saved_err_msg = err_msg_;
+        auto saved_error = error_info_;
 
         auto ports = _parse_port_list();
 
         // restore parser state (this function is only a validator, not a consumer)
         idx_ = saved_idx;
-        error_ = saved_error;
-        err_msg_ = saved_err_msg;
+        error_info_ = saved_error;
 
         return ports.has_value();
     }
@@ -127,8 +125,7 @@ namespace mvs
     {
         // reset state
         idx_ = 0;
-        error_ = false;
-        err_msg_.clear();
+        error_info_ = std::nullopt;
 
         // look for 'module'
         if (!_expect_keyword(Keyword::MODULE))
@@ -163,8 +160,7 @@ namespace mvs
             _advance();
         }
         // if we exhausted tokens without endmodule, fail
-        error_ = true;
-        err_msg_ = "Reached end of input without 'endmodule'";
+        _set_error("Reached end of input without 'endmodule'");
         return false;
     }
 
@@ -316,8 +312,7 @@ namespace mvs
         }
 
         // If there is no identifier and no parentheses, it is a syntax error in the expression
-        error_ = true;
-        err_msg_ = "Expected identifier or unary operator in expression, got: " + _current().text;
+        _set_error("Expected identifier or unary operator in expression, got: " + _current().text);
         return std::nullopt;
     }
 
@@ -447,8 +442,7 @@ namespace mvs
         int width = msb - lsb + 1;
         if (width <= 0)
         {
-            error_ = true;
-            err_msg_ = "Bus width cannot be zero or negative: [" + std::to_string(msb) + ":" + std::to_string(lsb) + "]";
+           _set_error("Bus width cannot be zero or negative: [" + std::to_string(msb) + ":" + std::to_string(lsb) + "]");
             return std::nullopt;
         }
 
@@ -515,13 +509,11 @@ namespace mvs
             }
             else if(!_accept_symbol(";"))
             {
-                error_ = true;
-                err_msg_ = "Unexpected token in module body: " + _current().text;
+                _set_error("Unexpected token in module body: " + _current().text);
                 return std::nullopt;
             }
         }
-        error_ = true;
-        err_msg_ = "Reached end of file before 'endmodule'";
+        _set_error("Reached end of file before 'endmodule'");
         return std::nullopt;
     }
 } // namespace mvs
