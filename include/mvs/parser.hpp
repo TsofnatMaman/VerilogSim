@@ -59,10 +59,10 @@ namespace mvs
         std::optional<std::vector<Wire>> _parse_wire_declaration();
         std::optional<Assign> _parse_assign_statement();
 
-        std::optional<ExprPtr> Parser::_parse_expression();
-        std::optional<ExprPtr> Parser::_parse_unary();
-        std::optional<ExprPtr> Parser::_parse_binary(int precedence);
-        int Parser::_get_precedence(const char &op) const;
+        std::optional<ExprPtr> _parse_expression();
+        std::optional<ExprPtr> _parse_unary();
+        std::optional<ExprPtr> _parse_binary(int precedence);
+        int _get_precedence(const char &op) const;
 
         bool _is_port_list_valid();
     };

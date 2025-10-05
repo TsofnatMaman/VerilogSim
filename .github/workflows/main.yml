@@ -1,0 +1,31 @@
+# .github/workflows/main.yml
+
+name: C++ CI with CMake
+
+on:
+  # הפעלת ה־Workflow בכל Push ו־Pull Request לענף הראשי
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build_and_test:
+    # סביבת ההרצה: גרסה עדכנית של אובונטו
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 1. Checkout Code 
+      uses: actions/checkout@v4
+      
+    - name: 2. Configure CMake (הכנת תיקיית הבנייה)
+      # יצירת תיקיית build והרצת cmake
+      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Debug
+
+    - name: 3. Build Project (בניית הקוד)
+      # בניית כל הקוד בתיקיית build
+      run: cmake --build ${{github.workspace}}/build
+
+    - name: 4. Run Tests (הרצת הטסטים)
+      # שימוש ב־ctest כדי להריץ את הטסטים שהוגדרו ב־CMakeLists.txt
+      run: ctest --test-dir ${{github.workspace}}/build --output-on-failure
