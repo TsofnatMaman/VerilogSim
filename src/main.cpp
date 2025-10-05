@@ -5,7 +5,7 @@
 #include "mvs/version.hpp"
 #include "mvs/lexer.hpp"
 #include "mvs/parser.hpp"
-#include "mvs/ast.hpp"
+#include "mvs/module.hpp"
 
 #include "mvs/algorithms.hpp"
 

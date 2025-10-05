@@ -1,7 +1,7 @@
 #include "catch.hpp"
 #include "mvs/lexer.hpp"
 #include "mvs/parser.hpp"
-#include "mvs/ast.hpp"
+#include "mvs/module.hpp"
 #include "mvs/algorithms.hpp"
 #include <string>
 #include <memory>

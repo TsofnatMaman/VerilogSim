@@ -3,6 +3,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 namespace mvs
 {
@@ -88,6 +89,7 @@ namespace mvs
         std::vector<Port> ports;
         std::vector<Wire> wires;
         std::vector<Assign> assigns;
+        std::unordered_map<std::string, int> symbols;
     };
 
 } // namespace mvs

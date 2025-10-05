@@ -1,7 +1,7 @@
-#include "mvs/ast.hpp"
 #include <map>
 #include <string>
 #include <stdexcept>
+#include "mvs/module.hpp"
 
 namespace mvs
 {

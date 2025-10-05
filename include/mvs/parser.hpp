@@ -1,6 +1,6 @@
 #pragma once
 #include "mvs/lexer.hpp"
-#include "mvs/ast.hpp"
+#include "mvs/module.hpp"
 #include <optional>
 #include <vector>
 #include <string>

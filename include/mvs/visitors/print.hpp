@@ -1,6 +1,6 @@
 #pragma once
 
-#include "mvs/ast.hpp"
+#include "mvs/module.hpp"
 #include <iostream>
 #include <string>
 
