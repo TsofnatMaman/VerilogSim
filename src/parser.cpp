@@ -199,7 +199,7 @@ namespace mvs
             std::optional<TargetBits> bus = _parse_bit_or_bus_selection();
             if (bus.has_value())
             {
-                p.width = bus.value().msb.value() - bus.value().lsb.value();
+                p.width = bus.value().msb.value() - bus.value().lsb.value()+1;
             }
 
             // Expect Port Identifier (and save its name)
@@ -236,7 +236,7 @@ namespace mvs
         std::optional<TargetBits> bus = _parse_bit_or_bus_selection();
         if (bus.has_value())
         {
-            width = bus.value().msb.value() - bus.value().lsb.value();
+            width = bus.value().msb.value() - bus.value().lsb.value()+1;
         }
 
         do
