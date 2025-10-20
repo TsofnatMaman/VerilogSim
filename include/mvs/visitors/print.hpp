@@ -7,23 +7,23 @@
 namespace mvs
 {
     /**
-     * @brief מבקר להדפסת ה-AST בצורת עץ באמצעות הזחה.
+     * @brief A visitor to print the AST in an indented tree format.
      */
     struct TreePrintVisitor : mvs::ExprVisitor
     {
-        // רמת העומק הנוכחית של ההדפסה
+        // Current depth for indentation.
         int current_depth = 0;
         
-        // --- פונקציות עזר ---
+        // --- Helper functions ---
         
-        /** יוצר מחרוזת הזחה לפי רמת העומק הנוכחית. */
+        /** Creates an indentation string based on the current depth. */
         std::string get_indent() const
         {
-            // משתמש ב-4 רווחים לכל רמת הזחה
+            // Use 4 spaces per indentation level.
             return std::string(current_depth * 4, ' ');
         }
         
-        /** מדפיס את הכותרת של הצומת הנוכחי עם הזחה. */
+        /** Prints the current node's header with indentation. */
         void print_node_header(const std::string& type, const std::string& value = "")
         {
             std::cout << get_indent() << "|-- " << type;
@@ -33,7 +33,7 @@ namespace mvs
             std::cout << "\n";
         }
 
-        // --- מתודות Visit ---
+        // --- Visit Methods ---
 
         int visit(const ExprIdent &e) override
         {
@@ -51,7 +51,7 @@ namespace mvs
         {
             print_node_header("UNARY", std::string(1, e.op));
             
-            // צד ימין (RHS)
+            // Right-hand side (RHS)
             current_depth++;
             e.rhs->accept(*this);
             current_depth--;
@@ -62,17 +62,17 @@ namespace mvs
         {
             print_node_header("BINARY", std::string(1, e.op));
 
-            // צד שמאל (LHS)
+            // Left-hand side (LHS)
             current_depth++;
             if (e.lhs) {
                 e.lhs->accept(*this);
             } else {
-                // מקרה לא סביר בביטוי בינארי תקין
+                // Unlikely case in a valid binary expression
                 std::cout << get_indent() << "|-- <Empty LHS>\n";
             }
             current_depth--;
 
-            // צד ימין (RHS)
+            // Right-hand side (RHS)
             current_depth++;
             if (e.rhs) {
                 e.rhs->accept(*this);
@@ -85,7 +85,7 @@ namespace mvs
     };
 
     /**
-     * @brief פונקציית עטיפה להדפסת ה-AST כעץ.
+     * @brief Wrapper function to print the AST as a tree.
      */
     inline int to_string(const Expr &e)
     {

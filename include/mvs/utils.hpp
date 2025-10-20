@@ -69,55 +69,55 @@ namespace mvs
     inline int parse_number(const std::string &str)
     {
         size_t i = 0;
-        int width = 0;
-        bool has_base_prefix = false;
 
-        // optional width
-        while (i < str.size() && std::isdigit(str[i]))
+        // 1. optional width
+        if (str[i] == ']')
         {
-            width = width * 10 + (str[i] - '0');
-            i++;
+            while (i < str.size() && std::isdigit(str[i]))
+                i++;
+            if (str[i] != ']')
+                throw std::runtime_error("invalid brackets " + str);
         }
-        
-        std::string digits = str.substr(0,i);
 
-        int base_int = 10;
+        // 2. default base = 10
+        int base = 10;
+
         if (i < str.size() && str[i] == '\'')
         {
-            i++; // skip ' char
-
-            if (i < str.size())
+            i++; // skip '
+            if (i >= str.size())
+                throw std::runtime_error("Incomplete number literal: missing base character after ' in \"" + str + "\"");
+            char base_char = std::tolower(str[i++]);
+            switch (base_char)
             {
-                char base_char = std::tolower(static_cast<unsigned char>(str[i]));
+            case 'b':
+                base = 2;
+                break;
+            case 'h':
+                base = 16;
+                break;
+            case 'd':
+                base = 10;
+                break;
+            default:
+                throw std::runtime_error("Invalid base character '" + std::string(1, base_char) + "' in number literal \"" + str + "\"");
+            }
+        }
 
-                switch (base_char)
-                {
-                case 'b':
-                    base_int = 2;
-                    break;
-                case 'h':
-                    base_int = 16;
-                    break;
-                case 'd':
-                    base_int = 10;
-                    break;
-                default:
-                    throw std::runtime_error("Invalid base character after '");
-                }
-                i++;
-            }
-            else
-            {
-                throw std::runtime_error("Missing base character after '");
-            }
+        // 3. collect digits
+        std::string digits;
+        while (i < str.size())
+        {
+            char c = str[i++];
+            if (c == '_')
+                continue; // ignore underscores
+            digits.push_back(c);
         }
 
         if (digits.empty())
-        {
-            throw std::runtime_error("Missing value digits for number parsing");
-        }
+            throw std::runtime_error("Missing value digits in number literal \"" + str + "\"");
 
-        return std::stoi(digits, nullptr, base_int);
+        return std::stoi(digits, nullptr, base);
     }
 
 } // namespace mvs

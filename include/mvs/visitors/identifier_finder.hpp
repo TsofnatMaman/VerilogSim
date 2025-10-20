@@ -1,22 +1,23 @@
 #pragma once
 
-#include "mvs/module.hpp"
+#include "mvs/module.hpp" // Contains ExprVisitor, ExprIdent, etc.
 #include <vector>
 #include <string>
+#include <unordered_set>
 
 namespace mvs
 {
     /**
-     * @brief A visitor to traverse an expression AST and collect all identifier names (ExprIdent).
+     * @brief A visitor to traverse an expression AST and collect all unique identifier names (ExprIdent).
      */
     struct IdentifierFinder : ExprVisitor
     {
-        std::vector<std::string> identifiers;
+        std::unordered_set<std::string> identifiers;
 
         // Visitor functions implementation:
         int visit(const ExprIdent &e) override
         {
-            identifiers.push_back(e.name);
+            identifiers.insert(e.name);
             return 0;
         }
 
@@ -43,6 +44,18 @@ namespace mvs
                 e.rhs->accept(*this);
             return 0;
         }
+        
+        // Add support for other expression types (e.g., Ternary) if they exist in your AST
+        // For example:
+        /*
+        int visit(const ExprTernary &e) override
+        {
+            if (e.cond) e.cond->accept(*this);
+            if (e.true_expr) e.true_expr->accept(*this);
+            if (e.false_expr) e.false_expr->accept(*this);
+            return 0;
+        }
+        */
 
         /**
          * @brief Utility function to run the finder on an expression.
@@ -54,7 +67,9 @@ namespace mvs
             IdentifierFinder finder;
             if (expr)
                 expr->accept(finder);
-            return finder.identifiers;
+            
+            // Convert set to vector for return consistency
+            return std::vector<std::string>(finder.identifiers.begin(), finder.identifiers.end());
         }
     };
 } // namespace mvs

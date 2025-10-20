@@ -1,14 +1,13 @@
-// include/mvs/Simulator.hpp
-
 #pragma once
 
 #include "mvs/module.hpp"
 #include "mvs/symbol_table.hpp"
 #include "mvs/visitors/expression_evaluator.hpp"
+#include "mvs/visitors/identifier_finder.hpp"
 #include <iostream>
-#include <vector>
 #include <unordered_map>
-#include "mvs/visitors/identifier_finder.hpp" // ✅ נדרש עבור _build_dependency_graph()
+#include <vector>
+#include <unordered_set>
 
 namespace mvs
 {
@@ -17,11 +16,26 @@ namespace mvs
      */
     class CircuitSimulator
     {
-        // ... (הכרזות על module_, symbols_ ו-dependency_graph_ נשארות כפי שהן)
-    public:
-        Module module_;
-        SymbolTable symbols_;
+    private:
+        // Maps a wire name (source) to a list of indices of 'assign' statements 
+        // that depend on it (sink). Built once before simulation.
         std::unordered_map<std::string, std::vector<size_t>> dependency_graph_;
+
+        // Cache for wire/port widths (O(1) lookup)
+        std::unordered_map<std::string, int> wire_widths_;
+
+        void _initialize_widths()
+        {
+            wire_widths_.clear();
+            for (const auto &port : module_.ports)
+            {
+                wire_widths_[port.name] = port.width;
+            }
+            for (const auto &wire : module_.wires)
+            {
+                wire_widths_[wire.name] = wire.width;
+            }
+        }
 
         void _build_dependency_graph()
         {
@@ -45,31 +59,31 @@ namespace mvs
         }
 
     public:
-        // ... (קונסטרוקטור, get_symbols, get_width נשארים כפי שהם)
+        Module module_;
+        SymbolTable symbols_;
 
+    public:
         CircuitSimulator(Module module)
-            : module_(std::move(module)) {}
+            : module_(std::move(module)) 
+        {
+            _initialize_widths(); // Initialize width cache upon creation
+        }
 
         const SymbolTable &get_symbols() const
         {
             return symbols_;
         }
 
+        // Optimized O(1) width lookup
         int get_width(const std::string &name)
         {
-            for (const auto &port : module_.ports)
+            if (wire_widths_.count(name))
             {
-                if (port.name == name)
-                    return port.width;
+                return wire_widths_.at(name);
             }
-            for (const auto &wire : module_.wires)
-            {
-                if (wire.name == name)
-                    return wire.width;
-            }
-            return 32;
+            // Default width for undeclared identifiers (e.g., input ports might not be added to map if not handled in _initialize_widths)
+            return 32; 
         }
-
 
         /**
          * @brief Runs the continuous simulation loop (Event-Driven Fixed-Point Iteration)
@@ -79,7 +93,7 @@ namespace mvs
         {
             // Initialization: fill the map for identifier variables with default values (0)
 
-            // מאתחלים את כל הפורטים והחוטים ל-0 (כולל הפלטים והחוטים הפנימיים)
+            // Initialize all outputs and internal wires to 0
             for (const auto &port : module_.ports)
             {
                 if (port.dir != PortDir::INPUT)
@@ -89,29 +103,33 @@ namespace mvs
             {
                 symbols_.set_value(wire.name, 0);
             }
-            
+
             // 1. Build the dependency graph once
             _build_dependency_graph();
 
-            // 2. Initialize the Active Queue with ALL assign indices
-            // All assignments must be evaluated at least once at the start.
+            // 2. Initialize the Active Queue and Set for Event-Driven Simulation
+            // The set prevents duplicate assignments from being recalculated unnecessarily.
             std::vector<size_t> active_queue;
+            std::unordered_set<size_t> active_set;
+            
+            // All assignments must be evaluated at least once at the start.
             for (size_t i = 0; i < module_.assigns.size(); ++i)
             {
                 active_queue.push_back(i);
+                active_set.insert(i);
             }
 
             // Use a single Evaluator object throughout the simulation
-            // (ההערכה תשתמש במצב הנוכחי של symbols_)
             ExpressionEvaluator evaluator(symbols_); 
 
             // Simulation loop (Event-Driven Fixed-Point Iteration)
-            // Loop until the active queue is empty (i.e., no recent changes caused further updates)
+            // Loop continues as long as there are events (assignments that need re-evaluation)
             while (!active_queue.empty())
             {
                 // Get the next assign statement index to evaluate
                 size_t assign_index = active_queue.back();
                 active_queue.pop_back();
+                active_set.erase(assign_index); // Mark as currently being processed/evaluated
 
                 const auto &assign_stmt = module_.assigns[assign_index];
 
@@ -167,11 +185,14 @@ namespace mvs
                     // 5. EVENT GENERATION: Add dependent assignments to the queue
                     if (dependency_graph_.count(assign_stmt.name))
                     {
-                        // Add all dependent assign indices to the active queue
-                        // (יפעיל מחדש את החישובים שמושפעים מהשינוי בחוט הנוכחי)
                         for (size_t next_assign_idx : dependency_graph_.at(assign_stmt.name))
                         {
-                            active_queue.push_back(next_assign_idx);
+                            // Only push the index if it's NOT already in the active set/queue
+                            if (active_set.find(next_assign_idx) == active_set.end())
+                            {
+                                active_set.insert(next_assign_idx);
+                                active_queue.push_back(next_assign_idx);
+                            }
                         }
                     }
                 }

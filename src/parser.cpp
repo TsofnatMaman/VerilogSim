@@ -516,9 +516,8 @@ namespace mvs
             {
                 return mod;
             }
-            else if (!_accept_symbol(";"))
+            else if (!_expect_symbol(";"))
             {
-                _set_error("Unexpected token in module body: " + _current().text);
                 return std::nullopt;
             }
         }
