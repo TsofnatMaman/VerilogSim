@@ -76,5 +76,5 @@ endmodule
     INFO("Actual Error Message: " << error_info.message);
 
     // 6. דרישה משנית: בדיקת תוכן ההודעה כדי לוודא שהגענו לנקודת הכישלון הנכונה
-    REQUIRE(error_info.message.find("Expected keyword not_a_keywordis not keyword") != std::string::npos);
+    REQUIRE(error_info.message.find("Unexpected token: not_a_keyword") != std::string::npos);
 }
