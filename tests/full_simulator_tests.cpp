@@ -11,7 +11,7 @@
 using namespace mvs;
 
 // Helper: run whole pipeline from source string -> tokenize -> parse -> simulate
-static std::optional<CircuitSimulator> build_sim_from_source(const std::string &src, std::string &error_out)
+static std::optional<Simulator> build_sim_from_source(const std::string &src, std::string &error_out)
 {
     Lexer lx(src);
     auto tokens = lx.Tokenize();
@@ -32,11 +32,11 @@ static std::optional<CircuitSimulator> build_sim_from_source(const std::string &
     }
 
     Module m = std::move(opt_mod.value());
-    CircuitSimulator sim(std::move(m));
-    return std::make_optional<CircuitSimulator>(std::move(sim));
+    Simulator sim(std::move(m));
+    return std::make_optional<Simulator>(std::move(sim));
 }
 
-static int sym_value(const CircuitSimulator &sim, const std::string &name)
+static int sym_value(const Simulator &sim, const std::string &name)
 {
     return sim.get_symbols().get_value(name);
 }

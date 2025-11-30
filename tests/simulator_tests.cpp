@@ -34,7 +34,7 @@ endmodule
     Module module = optional_module.value();
 
     // 3. Setup and Run Simulator (המשך הטסט)
-    CircuitSimulator sim(std::move(module));
+    Simulator sim(std::move(module));
     sim.symbols_.set_value("IN", 257);
     sim.simulate();
 

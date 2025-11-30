@@ -11,6 +11,7 @@ add_library(core
     src/parser.cpp
     src/lexer.cpp
     src/expression_evaluator.cpp
+    src/circuit_simulator.cpp
 )
 
 target_include_directories(core PUBLIC ${CMAKE_SOURCE_DIR}/include)
