@@ -509,11 +509,44 @@ endmodule`;
                 wireProducerX[w] = cols[Math.min(d, cols.length - 1)];
             });
 
-            // Prepare color palette and map each wire to a color (stable order)
-            const palette = ['#6a1b9a', '#00897b', '#f57c00', '#43a047', '#1e88e5', '#fb8c00', '#8e24aa', '#e53935'];
-            const wireList = Array.from(allWires).sort();
-            const wireColor = {};
-            wireList.forEach((w, i) => wireColor[w] = palette[i % palette.length]);
+            // Compute rightmost consumer X for each wire (where it stops being drawn)
+            const wireConsumerX = {};
+            Array.from(allWires).forEach(w => {
+                let maxX = wireProducerX[w]; // at least extends to producer
+                // Check if this wire is an output (primary circuit output)
+                if (outputs.includes(w)) {
+                    maxX = cols[cols.length - 1];
+                } else {
+                    // Find all gates that consume this wire
+                    netlist.forEach(gate => {
+                        if (gate.inputs.includes(w)) {
+                            const gateDepth = depthMemo[gate.output] || 0;
+                            const gateX = cols[Math.min(gateDepth, cols.length - 1)];
+                            maxX = Math.max(maxX, gateX - 45); // tap point slightly before gate
+                        }
+                    });
+                }
+                wireConsumerX[w] = maxX;
+            });
+
+            // Prepare color palette for gates/segments - ensure each wire gets unique color
+            const palette = ['#6a1b9a', '#00897b', '#f57c00', '#43a047', '#1e88e5', '#fb8c00', '#8e24aa', '#e53935', '#c62828', '#00695c', '#bf360c', '#1b5e20', '#ad1457', '#00838f', '#e65100', '#2e7d32', '#283593', '#f57f17'];
+            
+            // Assign unique color to each wire (including both inputs and gate outputs)
+            const segmentColor = {};
+            let colorIdx = 0;
+            
+            // First assign colors to primary inputs
+            inputs.forEach(inp => {
+                segmentColor[inp] = palette[colorIdx % palette.length];
+                colorIdx++;
+            });
+            
+            // Then assign colors to gate outputs
+            netlist.forEach(gate => {
+                segmentColor[gate.output] = palette[colorIdx % palette.length];
+                colorIdx++;
+            });
 
             // Add defs for markers (arrow head) and styling
             const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
@@ -531,40 +564,34 @@ endmodule`;
             defs.appendChild(marker);
             svg.appendChild(defs);
 
-            // Draw full rails for every wire from its producer X to rightmost column
+            // Draw rails for every wire from producer X to its rightmost consumer
             Array.from(allWires).forEach(w => {
                 const y = wireY[w];
                 const xStart = wireProducerX[w] + 12; // small offset from node
-                const xEnd = cols[cols.length - 1] - 12;
-                const rail = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                rail.setAttribute('x1', xStart);
-                rail.setAttribute('y1', y);
-                rail.setAttribute('x2', xEnd);
-                rail.setAttribute('y2', y);
-                rail.setAttribute('stroke', wireColor[w]);
-                rail.setAttribute('stroke-width', '3');
-                rail.setAttribute('stroke-linecap', 'round');
-                rail.setAttribute('data-wire', w);
-                railsGroup.appendChild(rail);
+                const xEnd = wireConsumerX[w];
+                
+                if (xEnd > xStart) {
+                    const rail = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    rail.setAttribute('x1', xStart);
+                    rail.setAttribute('y1', y);
+                    rail.setAttribute('x2', xEnd);
+                    rail.setAttribute('y2', y);
+                    rail.setAttribute('stroke', segmentColor[w]);
+                    rail.setAttribute('stroke-width', '3');
+                    rail.setAttribute('stroke-linecap', 'round');
+                    rail.setAttribute('data-wire', w);
+                    railsGroup.appendChild(rail);
+                }
 
                 // small producer circle (colored)
                 const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
                 dot.setAttribute('cx', wireProducerX[w]);
                 dot.setAttribute('cy', y);
                 dot.setAttribute('r', '9');
-                dot.setAttribute('fill', wireColor[w]);
+                dot.setAttribute('fill', segmentColor[w]);
                 dot.setAttribute('stroke', '#fff');
                 dot.setAttribute('stroke-width', '2');
                 portsGroup.appendChild(dot);
-
-                // small wire label on rail (right side, subtle)
-                const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                label.setAttribute('x', xEnd + 8);
-                label.setAttribute('y', y + 5);
-                label.setAttribute('font-size', '12');
-                label.setAttribute('fill', '#2e7d32');
-                label.textContent = w;
-                portsGroup.appendChild(label);
             });
 
             // Helper to draw orthogonal connection from rail to gate input
@@ -573,7 +600,7 @@ endmodule`;
                 const railTapX = gateX - 40; // column where we tap
 
                 // horizontal from rail producer area to tapX
-                const color = wireColor[wireName] || '#999';
+                const color = segmentColor[wireName] || '#999';
 
                 const h = document.createElementNS('http://www.w3.org/2000/svg', 'line');
                 h.setAttribute('x1', wireProducerX[wireName] + 12);
@@ -637,14 +664,14 @@ endmodule`;
                 // Draw gate symbol
                 drawGateSymbol(gatesGroup, gX - 22, gY - 18, gate.type, gate.output);
 
-                // Draw short output stub to rail
+                // Draw short output stub to rail (colored with gate's segment color)
                 const outStub = document.createElementNS('http://www.w3.org/2000/svg', 'line');
                 outStub.setAttribute('x1', gX + 25);
                 outStub.setAttribute('y1', gY);
                 outStub.setAttribute('x2', gX + 40);
                 outStub.setAttribute('y2', gY);
-                outStub.setAttribute('stroke', '#333');
-                outStub.setAttribute('stroke-width', '2');
+                outStub.setAttribute('stroke', segmentColor[gate.output]);
+                outStub.setAttribute('stroke-width', '3');
                 outStub.setAttribute('data-wire', gate.output);
                 wiresGroup.appendChild(outStub);
             });
