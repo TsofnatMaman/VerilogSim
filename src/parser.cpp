@@ -122,6 +122,9 @@ namespace mvs
             else if (_accept_keyword(Keyword::INOUT))
                 p.dir = PortDir::INOUT;
 
+            // Optional 'wire' keyword (skip it if present)
+            _accept_keyword(Keyword::WIRE);
+
             // Optional bus width
             if (auto bus_opt = _parse_bit_or_bus_selection(); bus_opt.has_value())
                 p.width = bus_opt.value().msb.value() - bus_opt.value().lsb.value() + 1;

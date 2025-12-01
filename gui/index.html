@@ -219,6 +219,22 @@ endmodule"></textarea>
             <h2>📈 Netlist Details</h2>
             <div id="netlsitContainer"></div>
         </div>
+        
+        <div class="panel">
+            <h2>🔌 Circuit Diagram</h2>
+            <svg id="circuitDiagram" width="100%" height="800" style="border: 1px solid #ddd; border-radius: 4px; background: #f9f9f9;" viewBox="0 0 1400 700"></svg>
+        </div>
+        
+        <div class="panel">
+            <h2>⚡ Simulation - Input Values</h2>
+            <div id="inputsContainer">No inputs detected. Please analyze a circuit first.</div>
+            <button onclick="runSimulation()" id="simulateBtn" style="display:none;">▶️ Run Simulation</button>
+        </div>
+        
+        <div class="panel">
+            <h2>📤 Wire Values</h2>
+            <div id="valuesContainer" style="background: #f5f5f5; padding: 15px; border-radius: 4px;">Awaiting simulation...</div>
+        </div>
     </div>
     
     <script async type="module">
@@ -232,6 +248,36 @@ endmodule"></textarea>
             Module = m;
             console.log('✓ Wasm module loaded successfully');
             document.getElementById('output').innerHTML = '<span class="success">✓ Wasm module ready</span>';
+            
+            // Auto-load cute_gates example
+            const cuteGatesCode = `module cute_gates (
+    input wire a,
+    input wire b,
+    input wire c,
+    input wire d,
+    output wire y_and,
+    output wire y_or,
+    output wire y_xor,
+    output wire y_mix
+);
+    wire ab_and;
+    wire cd_or;
+    wire not_d;
+    assign ab_and = a & b;
+    assign cd_or = c | d;
+    assign y_xor = a ^ c;
+    assign not_d = ~d;
+    assign y_and = ab_and;
+    assign y_or = cd_or;
+    assign y_mix = ab_and ^ cd_or;
+endmodule`;
+            
+            document.getElementById('verilogInput').value = cuteGatesCode;
+            
+            // Auto-analyze
+            setTimeout(() => {
+                window.analyzeVerilog();
+            }, 500);
         }).catch(err => {
             console.error('✗ Failed to load Wasm module:', err);
             document.getElementById('output').innerHTML = '<span class="error">✗ Failed to load Wasm module: ' + err.message + '</span>';
@@ -313,7 +359,10 @@ endmodule"></textarea>
             return text.replace(/[&<>"']/g, m => map[m]);
         }
         
+        let currentNetlist = [];
+        
         window.displayNetlistTable = function(netlist) {
+            currentNetlist = netlist;
             const container = document.getElementById('netlsitContainer');
             let html = '<table class="netlist-table"><thead><tr><th>Output</th><th>Type</th><th>Inputs</th></tr></thead><tbody>';
             
@@ -324,6 +373,633 @@ endmodule"></textarea>
             
             html += '</tbody></table>';
             container.innerHTML = html;
+            
+            // Also draw the circuit diagram
+            window.drawCircuitDiagram(netlist);
+            
+            // Generate input fields
+            window.generateInputFields(netlist);
+        };
+        
+        window.drawCircuitDiagram = function(netlist) {
+            console.log('Drawing circuit with netlist:', netlist);
+
+            const svg = document.getElementById('circuitDiagram');
+            if (!svg || netlist.length === 0) return;
+
+            while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+            const width = svg.clientWidth || 1400;
+            const height = svg.clientHeight || 800;
+
+            const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            bg.setAttribute('width', width);
+            bg.setAttribute('height', height);
+            bg.setAttribute('fill', '#fafafa');
+            svg.appendChild(bg);
+
+            // Build gate map
+            const gatesByOutput = {};
+            netlist.forEach(gate => {
+                gatesByOutput[gate.output] = gate;
+            });
+
+            // Find all inputs and outputs
+            const allOutputs = new Set(netlist.map(g => g.output));
+            const primaryInputs = new Set();
+            netlist.forEach(gate => {
+                gate.inputs.forEach(inp => {
+                    if (!allOutputs.has(inp)) {
+                        primaryInputs.add(inp);
+                    }
+                });
+            });
+            const inputs = Array.from(primaryInputs).sort();
+            const outputs = Array.from(allOutputs).sort();
+
+            // All wires: inputs + intermediate outputs
+            const allWires = new Set(inputs.concat(Array.from(allOutputs)));
+
+            // Create groups
+            const railsGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            railsGroup.setAttribute('id', 'rails-group');
+            svg.appendChild(railsGroup);
+
+            const wiresGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            wiresGroup.setAttribute('id', 'wires-group');
+            svg.appendChild(wiresGroup);
+
+            const gatesGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            gatesGroup.setAttribute('id', 'gates-group');
+            svg.appendChild(gatesGroup);
+
+            const portsGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            portsGroup.setAttribute('id', 'ports-group');
+            svg.appendChild(portsGroup);
+
+            // Calculate depths (producer depth for each wire)
+            const depthMemo = {};
+            const calculateDepth = (wire) => {
+                if (wire in depthMemo) return depthMemo[wire];
+                if (!gatesByOutput[wire]) {
+                    depthMemo[wire] = 0;
+                    return 0;
+                }
+                const gate = gatesByOutput[wire];
+                const inputsDepths = gate.inputs.map(i => calculateDepth(i));
+                const d = Math.max(...inputsDepths) + 1;
+                depthMemo[wire] = d;
+                return d;
+            };
+            outputs.forEach(o => calculateDepth(o));
+
+            const maxDepth = Math.max(0, ...Object.values(depthMemo));
+
+            // Column X positions: column 0 = inputs, columns 1..maxDepth = gate depths, column maxDepth+1 = outputs column
+            const cols = [];
+            const leftX = 60;
+            const rightX = width - 60;
+            const totalCols = Math.max(1, maxDepth + 2);
+            const colSpacing = (width - 140) / (totalCols - 1);
+            for (let c = 0; c < totalCols; c++) cols.push(60 + c * colSpacing);
+
+            // Y positions: inputs first (ordered), gates arranged per depth and spaced
+            const wireY = {};
+            const topMargin = 60;
+            const bottomMargin = 60;
+            const availableHeight = Math.max(200, height - topMargin - bottomMargin);
+            const inputSpacing = availableHeight / (Math.max(1, inputs.length) + 1);
+            inputs.forEach((inp, idx) => {
+                wireY[inp] = topMargin + (idx + 1) * inputSpacing;
+            });
+
+            // Place gates per depth and set their output Y (centered for that depth)
+            const gatesByDepth = {};
+            netlist.forEach(g => {
+                const d = depthMemo[g.output] || 0;
+                if (!gatesByDepth[d]) gatesByDepth[d] = [];
+                gatesByDepth[d].push(g);
+            });
+
+            for (let d = 1; d <= maxDepth; d++) {
+                const gates = gatesByDepth[d] || [];
+                const blockTop = topMargin;
+                const blockHeight = availableHeight;
+                const spacing = blockHeight / (Math.max(1, gates.length) + 1);
+                gates.forEach((g, i) => {
+                    const y = blockTop + (i + 1) * spacing;
+                    wireY[g.output] = y;
+                });
+            }
+
+            // For any wire still without Y (rare), place underneath
+            let fallbackY = topMargin + availableHeight + 20;
+            Array.from(allWires).forEach(w => {
+                if (!wireY[w]) {
+                    wireY[w] = fallbackY;
+                    fallbackY += 24;
+                }
+            });
+
+            // Producer X (where the wire originates): inputs -> col 0, gate outputs -> their depth column
+            const wireProducerX = {};
+            inputs.forEach(i => wireProducerX[i] = cols[0]);
+            Object.keys(depthMemo).forEach(w => {
+                const d = depthMemo[w] || 0;
+                wireProducerX[w] = cols[Math.min(d, cols.length - 1)];
+            });
+
+            // Prepare color palette and map each wire to a color (stable order)
+            const palette = ['#6a1b9a', '#00897b', '#f57c00', '#43a047', '#1e88e5', '#fb8c00', '#8e24aa', '#e53935'];
+            const wireList = Array.from(allWires).sort();
+            const wireColor = {};
+            wireList.forEach((w, i) => wireColor[w] = palette[i % palette.length]);
+
+            // Add defs for markers (arrow head) and styling
+            const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+            const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+            marker.setAttribute('id', 'arrow');
+            marker.setAttribute('markerWidth', '8');
+            marker.setAttribute('markerHeight', '8');
+            marker.setAttribute('refX', '6');
+            marker.setAttribute('refY', '3');
+            marker.setAttribute('orient', 'auto');
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('d', 'M0,0 L6,3 L0,6 z');
+            path.setAttribute('fill', '#333');
+            marker.appendChild(path);
+            defs.appendChild(marker);
+            svg.appendChild(defs);
+
+            // Draw full rails for every wire from its producer X to rightmost column
+            Array.from(allWires).forEach(w => {
+                const y = wireY[w];
+                const xStart = wireProducerX[w] + 12; // small offset from node
+                const xEnd = cols[cols.length - 1] - 12;
+                const rail = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                rail.setAttribute('x1', xStart);
+                rail.setAttribute('y1', y);
+                rail.setAttribute('x2', xEnd);
+                rail.setAttribute('y2', y);
+                rail.setAttribute('stroke', wireColor[w]);
+                rail.setAttribute('stroke-width', '3');
+                rail.setAttribute('stroke-linecap', 'round');
+                rail.setAttribute('data-wire', w);
+                railsGroup.appendChild(rail);
+
+                // small producer circle (colored)
+                const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                dot.setAttribute('cx', wireProducerX[w]);
+                dot.setAttribute('cy', y);
+                dot.setAttribute('r', '9');
+                dot.setAttribute('fill', wireColor[w]);
+                dot.setAttribute('stroke', '#fff');
+                dot.setAttribute('stroke-width', '2');
+                portsGroup.appendChild(dot);
+
+                // small wire label on rail (right side, subtle)
+                const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                label.setAttribute('x', xEnd + 8);
+                label.setAttribute('y', y + 5);
+                label.setAttribute('font-size', '12');
+                label.setAttribute('fill', '#2e7d32');
+                label.textContent = w;
+                portsGroup.appendChild(label);
+            });
+
+            // Helper to draw orthogonal connection from rail to gate input
+            function connectRailToGate(wireName, gateX, gateInputY) {
+                const railY = wireY[wireName];
+                const railTapX = gateX - 40; // column where we tap
+
+                // horizontal from rail producer area to tapX
+                const color = wireColor[wireName] || '#999';
+
+                const h = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                h.setAttribute('x1', wireProducerX[wireName] + 12);
+                h.setAttribute('y1', railY);
+                h.setAttribute('x2', railTapX);
+                h.setAttribute('y2', railY);
+                h.setAttribute('stroke', color);
+                h.setAttribute('stroke-width', '3');
+                h.setAttribute('stroke-linecap', 'round');
+                h.setAttribute('data-wire', wireName);
+                wiresGroup.appendChild(h);
+
+                // vertical from railTapX,railY to railTapX,gateInputY
+                const v = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                v.setAttribute('x1', railTapX);
+                v.setAttribute('y1', railY);
+                v.setAttribute('x2', railTapX);
+                v.setAttribute('y2', gateInputY);
+                v.setAttribute('stroke', color);
+                v.setAttribute('stroke-width', '3');
+                v.setAttribute('stroke-linecap', 'round');
+                v.setAttribute('data-wire', wireName);
+                wiresGroup.appendChild(v);
+
+                // short horizontal into gate (lighter stroke)
+                const h2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                h2.setAttribute('x1', railTapX);
+                h2.setAttribute('y1', gateInputY);
+                h2.setAttribute('x2', gateX - 18);
+                h2.setAttribute('y2', gateInputY);
+                h2.setAttribute('stroke', color);
+                h2.setAttribute('stroke-width', '3');
+                h2.setAttribute('data-wire', wireName);
+                wiresGroup.appendChild(h2);
+
+                // junction circle at tap (colored)
+                const tap = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                tap.setAttribute('cx', railTapX);
+                tap.setAttribute('cy', railY);
+                tap.setAttribute('r', '5');
+                tap.setAttribute('fill', color);
+                tap.setAttribute('stroke', '#fff');
+                tap.setAttribute('stroke-width', '1.5');
+                wiresGroup.appendChild(tap);
+            }
+
+            // Draw gates and connect
+            netlist.forEach(gate => {
+                const d = depthMemo[gate.output] || 0;
+                const gX = cols[Math.min(d, cols.length - 1)];
+                const gY = wireY[gate.output];
+
+                // Draw gate inputs: compute position for each input on left side of gate
+                gate.inputs.forEach((inp, idx) => {
+                    const inputCount = gate.inputs.length;
+                    const inputY = gY - 10 + (inputCount === 1 ? 10 : (idx * (20 / Math.max(1, inputCount - 1))));
+                    // connect rail to this gate input
+                    connectRailToGate(inp, gX, inputY);
+                });
+
+                // Draw gate symbol
+                drawGateSymbol(gatesGroup, gX - 22, gY - 18, gate.type, gate.output);
+
+                // Draw short output stub to rail
+                const outStub = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                outStub.setAttribute('x1', gX + 25);
+                outStub.setAttribute('y1', gY);
+                outStub.setAttribute('x2', gX + 40);
+                outStub.setAttribute('y2', gY);
+                outStub.setAttribute('stroke', '#333');
+                outStub.setAttribute('stroke-width', '2');
+                outStub.setAttribute('data-wire', gate.output);
+                wiresGroup.appendChild(outStub);
+            });
+
+            // Draw input labels on left
+            inputs.forEach(i => {
+                const y = wireY[i];
+                const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                txt.setAttribute('x', 40);
+                txt.setAttribute('y', y + 5);
+                txt.setAttribute('text-anchor', 'end');
+                txt.setAttribute('font-size', '13');
+                txt.setAttribute('font-weight', 'bold');
+                txt.setAttribute('fill', '#1976d2');
+                txt.textContent = i;
+                portsGroup.appendChild(txt);
+            });
+
+            // Draw outputs on right (labels and dots)
+            outputs.forEach(o => {
+                const y = wireY[o];
+                const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                dot.setAttribute('cx', cols[cols.length - 1]);
+                dot.setAttribute('cy', y);
+                dot.setAttribute('r', '6');
+                dot.setAttribute('fill', '#66bb6a');
+                dot.setAttribute('stroke', '#2e7d32');
+                dot.setAttribute('stroke-width', '2');
+                portsGroup.appendChild(dot);
+
+                const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                txt.setAttribute('x', cols[cols.length - 1] + 14);
+                txt.setAttribute('y', y + 5);
+                txt.setAttribute('text-anchor', 'start');
+                txt.setAttribute('font-size', '13');
+                txt.setAttribute('font-weight', 'bold');
+                txt.setAttribute('fill', '#2e7d32');
+                txt.textContent = o;
+                portsGroup.appendChild(txt);
+            });
+
+            console.log('✓ Circuit diagram complete');
+        };
+        
+        function drawWireWithArrow(container, x1, y1, x2, y2, wireLabel) {
+            // Draw curved wire (Bezier path)
+            const midX = (x1 + x2) / 2;
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('d', `M ${x1} ${y1} Q ${midX} ${(y1 + y2) / 2} ${x2} ${y2}`);
+            path.setAttribute('stroke', '#333');
+            path.setAttribute('stroke-width', '2');
+            path.setAttribute('fill', 'none');
+            path.setAttribute('data-wire', wireLabel);
+            container.appendChild(path);
+            
+            // Calculate arrow position and rotation
+            // Get a point slightly before the endpoint
+            const t = 0.95;
+            const px = Math.pow(1-t, 2) * x1 + 2 * (1-t) * t * midX + Math.pow(t, 2) * x2;
+            const py = Math.pow(1-t, 2) * y1 + 2 * (1-t) * t * ((y1 + y2) / 2) + Math.pow(t, 2) * y2;
+            
+            const angle = Math.atan2(y2 - y1, x2 - x1);
+            const arrowSize = 8;
+            
+            // Arrow head
+            const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+            arrow.setAttribute('points', 
+                `${x2},${y2} ` +
+                `${x2 - arrowSize * Math.cos(angle - Math.PI/6)},${y2 - arrowSize * Math.sin(angle - Math.PI/6)} ` +
+                `${x2 - arrowSize * Math.cos(angle + Math.PI/6)},${y2 - arrowSize * Math.sin(angle + Math.PI/6)}`
+            );
+            arrow.setAttribute('fill', '#333');
+            arrow.setAttribute('data-wire', wireLabel);
+            container.appendChild(arrow);
+        }
+        
+        function drawGateSymbol(layer, x, y, gateType, label) {
+            const colors = {
+                'AND': { fill: '#4CAF50', icon: 'AND' },
+                'OR': { fill: '#2196F3', icon: 'OR' },
+                'XOR': { fill: '#FF9800', icon: 'XOR' },
+                'NOT': { fill: '#F44336', icon: '¬' },
+                'NAND': { fill: '#9C27B0', icon: 'NAND' },
+                'NOR': { fill: '#00BCD4', icon: 'NOR' },
+                'IDENTITY': { fill: '#607D8B', icon: '=' },
+                'CONSTANT': { fill: '#795548', icon: 'C' }
+            };
+            
+            const gateColor = colors[gateType] || { fill: '#2a5298', icon: '?' };
+            
+            // Draw different gate shapes
+            switch(gateType) {
+                case 'AND':
+                    // AND gate: curved right side
+                    const andPath = `M ${x} ${y} L ${x+50} ${y} Q ${x+70} ${y+25} ${x+50} ${y+50} L ${x} ${y+50} Z`;
+                    const andGate = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    andGate.setAttribute('d', andPath);
+                    andGate.setAttribute('fill', gateColor.fill);
+                    andGate.setAttribute('stroke', '#333');
+                    andGate.setAttribute('stroke-width', '2');
+                    layer.appendChild(andGate);
+                    break;
+                    
+                case 'OR':
+                    // OR gate: curved sides
+                    const orPath = `M ${x+5} ${y} Q ${x+15} ${y+25} ${x+5} ${y+50} L ${x+50} ${y+50} Q ${x+70} ${y+25} ${x+50} ${y} Z`;
+                    const orGate = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    orGate.setAttribute('d', orPath);
+                    orGate.setAttribute('fill', gateColor.fill);
+                    orGate.setAttribute('stroke', '#333');
+                    orGate.setAttribute('stroke-width', '2');
+                    layer.appendChild(orGate);
+                    break;
+                    
+                case 'XOR':
+                    // XOR gate: curved with extra line
+                    const xorPath = `M ${x+5} ${y} Q ${x+15} ${y+25} ${x+5} ${y+50} L ${x+50} ${y+50} Q ${x+70} ${y+25} ${x+50} ${y} Z`;
+                    const xorGate = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    xorGate.setAttribute('d', xorPath);
+                    xorGate.setAttribute('fill', gateColor.fill);
+                    xorGate.setAttribute('stroke', '#333');
+                    xorGate.setAttribute('stroke-width', '2');
+                    layer.appendChild(xorGate);
+                    
+                    // Extra curved line for XOR
+                    const xorLine = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    xorLine.setAttribute('d', `M ${x+2} ${y} Q ${x+8} ${y+25} ${x+2} ${y+50}`);
+                    xorLine.setAttribute('stroke', '#333');
+                    xorLine.setAttribute('stroke-width', '2');
+                    xorLine.setAttribute('fill', 'none');
+                    layer.appendChild(xorLine);
+                    break;
+                    
+                case 'NOT':
+                    // NOT gate: triangle
+                    const notPath = `M ${x} ${y} L ${x} ${y+50} L ${x+50} ${y+25} Z`;
+                    const notGate = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    notGate.setAttribute('d', notPath);
+                    notGate.setAttribute('fill', gateColor.fill);
+                    notGate.setAttribute('stroke', '#333');
+                    notGate.setAttribute('stroke-width', '2');
+                    layer.appendChild(notGate);
+                    
+                    // Circle at output
+                    const notCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    notCircle.setAttribute('cx', x + 60);
+                    notCircle.setAttribute('cy', y + 25);
+                    notCircle.setAttribute('r', '6');
+                    notCircle.setAttribute('fill', 'none');
+                    notCircle.setAttribute('stroke', '#333');
+                    notCircle.setAttribute('stroke-width', '2');
+                    layer.appendChild(notCircle);
+                    break;
+                    
+                default:
+                    // Default: rounded rectangle
+                    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    rect.setAttribute('x', x);
+                    rect.setAttribute('y', y);
+                    rect.setAttribute('width', 60);
+                    rect.setAttribute('height', 50);
+                    rect.setAttribute('rx', '5');
+                    rect.setAttribute('fill', gateColor.fill);
+                    rect.setAttribute('stroke', '#333');
+                    rect.setAttribute('stroke-width', '2');
+                    layer.appendChild(rect);
+            }
+            
+            // Gate label inside
+            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            text.setAttribute('x', x + 30);
+            text.setAttribute('y', y + 30);
+            text.setAttribute('text-anchor', 'middle');
+            text.setAttribute('font-weight', 'bold');
+            text.setAttribute('font-size', '12');
+            text.setAttribute('fill', 'white');
+            text.textContent = gateColor.icon;
+            layer.appendChild(text);
+        }
+        
+        function drawWire(svg, x1, y1, x2, y2, wireLabel) {
+            // This function is no longer used - kept for compatibility
+        }
+        
+        function getGateColor(gateType) {
+            const colors = {
+                'AND': '#4CAF50',
+                'OR': '#2196F3',
+                'XOR': '#FF9800',
+                'NOT': '#F44336',
+                'NAND': '#9C27B0',
+                'NOR': '#00BCD4',
+                'IDENTITY': '#607D8B',
+                'CONSTANT': '#795548'
+            };
+            return colors[gateType] || '#2a5298';
+        }
+        
+        // Generate input fields for the circuit
+        window.generateInputFields = function(netlist) {
+            const container = document.getElementById('inputsContainer');
+            const inputs = new Set();
+            
+            // Collect all inputs (wires used but not generated by any gate)
+            netlist.forEach(component => {
+                component.inputs.forEach(input => {
+                    inputs.add(input);
+                });
+            });
+            
+            // Remove outputs that are generated
+            netlist.forEach(component => {
+                inputs.delete(component.output);
+            });
+            
+            if (inputs.size === 0) {
+                container.innerHTML = '<p style="color: #666;">No inputs found in this circuit.</p>';
+                document.getElementById('simulateBtn').style.display = 'none';
+                return;
+            }
+            
+            let html = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">';
+            
+            inputs.forEach(input => {
+                html += `
+                    <div style="border: 1px solid #ddd; padding: 10px; border-radius: 4px;">
+                        <label style="font-weight: bold; display: block; margin-bottom: 8px;">${input}</label>
+                        <div style="display: flex; gap: 10px;">
+                            <button onclick="setInputValue('${input}', 0)" style="flex: 1; padding: 8px; background: #f44336; color: white; border: none; border-radius: 3px; cursor: pointer;">0</button>
+                            <button onclick="setInputValue('${input}', 1)" style="flex: 1; padding: 8px; background: #4CAF50; color: white; border: none; border-radius: 3px; cursor: pointer;">1</button>
+                        </div>
+                        <div id="value_${input}" style="margin-top: 8px; text-align: center; padding: 5px; background: #f9f9f9; border-radius: 3px; font-weight: bold; color: #333;">?</div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            container.innerHTML = html;
+            document.getElementById('simulateBtn').style.display = 'block';
+        };
+        
+        // Store input values
+        const inputValues = {};
+        
+        window.setInputValue = function(inputName, value) {
+            inputValues[inputName] = value;
+            document.getElementById('value_' + inputName).textContent = value;
+            
+            // Auto-run simulation
+            window.runSimulation();
+        };
+        
+        // Run simulation
+        window.runSimulation = function() {
+            if (!Module || !Module.simulateCircuit) {
+                console.error('Wasm module not ready');
+                return;
+            }
+            
+            const verilogCode = document.getElementById('verilogInput').value;
+            const valuesContainer = document.getElementById('valuesContainer');
+            
+            try {
+                // Call simulation
+                const resultJson = Module.simulateCircuit(verilogCode, JSON.stringify(inputValues));
+                const result = JSON.parse(resultJson);
+                
+                if (result.error) {
+                    valuesContainer.innerHTML = `<span class="error">❌ ${escapeHtml(result.error)}</span>`;
+                } else {
+                    // Display wire values
+                    let html = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px;">';
+                    
+                    for (const [wire, value] of Object.entries(result.values)) {
+                        const valueDisplay = value ? '1 ✓' : '0 ✗';
+                        const color = value ? '#4CAF50' : '#f44336';
+                        html += `
+                            <div style="border: 2px solid ${color}; padding: 12px; border-radius: 4px; text-align: center;">
+                                <div style="font-weight: bold; margin-bottom: 8px; color: #333;">${wire}</div>
+                                <div style="font-size: 20px; font-weight: bold; color: ${color};">${valueDisplay}</div>
+                            </div>
+                        `;
+                    }
+                    
+                    html += '</div>';
+                    valuesContainer.innerHTML = html;
+                    
+                    // Update circuit diagram colors
+                    window.updateCircuitDiagramWithValues(result.values);
+                }
+            } catch (error) {
+                console.error('Simulation error:', error);
+                valuesContainer.innerHTML = `<span class="error">❌ ${escapeHtml(error.message)}</span>`;
+            }
+        };
+        
+        // Update circuit diagram to show wire values
+        window.updateCircuitDiagramWithValues = function(values) {
+            const svg = document.getElementById('circuitDiagram');
+            if (!svg) return;
+            
+            // Remove old value labels
+            svg.querySelectorAll('[data-value-label]').forEach(el => el.remove());
+            
+            // Update wire colors and add value labels
+            svg.querySelectorAll('path').forEach(path => {
+                const wireName = path.getAttribute('data-wire');
+                if (wireName && values.hasOwnProperty(wireName)) {
+                    const value = values[wireName];
+                    const color = value ? '#4CAF50' : '#f44336';
+                    const textColor = value ? '#2E7D32' : '#c62828';
+                    
+                    path.setAttribute('stroke', color);
+                    path.setAttribute('stroke-width', '2.5');
+                    
+                    // Get path midpoint for label
+                    const pathLength = path.getTotalLength();
+                    const midPoint = path.getPointAtLength(pathLength / 2);
+                    
+                    // Add value label
+                    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    text.setAttribute('x', midPoint.x);
+                    text.setAttribute('y', midPoint.y - 8);
+                    text.setAttribute('font-size', '12');
+                    text.setAttribute('font-weight', 'bold');
+                    text.setAttribute('fill', textColor);
+                    text.setAttribute('text-anchor', 'middle');
+                    text.setAttribute('data-value-label', wireName);
+                    text.setAttribute('pointer-events', 'none');
+                    
+                    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    circle.setAttribute('cx', midPoint.x);
+                    circle.setAttribute('cy', midPoint.y - 8);
+                    circle.setAttribute('r', '10');
+                    circle.setAttribute('fill', 'white');
+                    circle.setAttribute('stroke', textColor);
+                    circle.setAttribute('stroke-width', '1');
+                    circle.setAttribute('data-value-label', wireName);
+                    circle.setAttribute('pointer-events', 'none');
+                    
+                    svg.appendChild(circle);
+                    svg.appendChild(text);
+                    text.textContent = value ? '1' : '0';
+                }
+            });
+            
+            // Update arrow colors
+            svg.querySelectorAll('polygon').forEach(arrow => {
+                const wireName = arrow.getAttribute('data-wire');
+                if (wireName && values.hasOwnProperty(wireName)) {
+                    const value = values[wireName];
+                    const color = value ? '#4CAF50' : '#f44336';
+                    arrow.setAttribute('fill', color);
+                }
+            });
         };
         
         // Allow Enter key to submit
