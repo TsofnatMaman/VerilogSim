@@ -527,7 +527,7 @@ endmodule`;
 
             const maxDepth = Math.max(0, ...Object.values(depthMemo));
 
-            // ⭐ שינוי 1: התאמת גובה ה-SVG לריווח החדש
+            // ⭐ FIX 1: Dynamic SVG Height adjustment for spacing
             const numVerticalItems = Math.max(inputs.length, netlist.length) + 1;
             const requiredMinHeight = numVerticalItems * 60 + 120; // 60px space + margins
             const newHeight = Math.max(height, requiredMinHeight, 800);
@@ -549,8 +549,8 @@ endmodule`;
             const bottomMargin = 60;
             const availableHeight = Math.max(200, height - topMargin - bottomMargin);
 
-            // ⭐ שינוי 2: הגדרת מרווח מינימלי לכניסות (40px)
-            const minSpacing = 40; 
+            // ⭐ FIX 2: Minimum spacing for inputs
+            const minSpacing = 40;
             const totalInputHeight = Math.max(availableHeight, inputs.length * minSpacing);
             const inputSpacing = totalInputHeight / (Math.max(1, inputs.length) + 1);
             // ------------------------------------
@@ -571,13 +571,13 @@ endmodule`;
                 const gates = gatesByDepth[d] || [];
                 const blockTop = topMargin;
                 const blockHeight = availableHeight;
-                
-                // ⭐ שינוי 3: הגדרת מרווח מינימלי לשערים (60px)
+
+                // ⭐ FIX 3: Minimum spacing for gates
                 const minGateSpacing = 60;
                 const totalGateHeight = Math.max(blockHeight, gates.length * minGateSpacing);
                 const spacing = totalGateHeight / (Math.max(1, gates.length) + 1);
                 // ------------------------------------
-                
+
                 gates.forEach((g, i) => {
                     const y = blockTop + (i + 1) * spacing;
                     wireY[g.output] = y;
@@ -689,9 +689,11 @@ endmodule`;
             });
 
             // Helper to draw orthogonal connection from rail to gate input
-            function connectRailToGate(wireName, gateX, gateInputY) {
+            function connectRailToGate(wireName, gateX, gateInputY, offsetX = 0) { // <-- הוספת offsetX
                 const railY = wireY[wireName];
-                const railTapX = gateX - 40; // column where we tap
+
+                const baseTapX = gateX - 40;
+                const railTapX = baseTapX - offsetX; // <-- החלת ההיסט
 
                 // horizontal from rail producer area to tapX
                 const color = segmentColor[wireName] || '#999';
@@ -754,8 +756,12 @@ endmodule`;
                 gate.inputs.forEach((inp, idx) => {
                     const inputCount = gate.inputs.length;
                     const inputY = gY - 10 + (inputCount === 1 ? 10 : (idx * (20 / Math.max(1, inputCount - 1))));
+                    
+                    // ⭐ FIX 4: חישוב היסט X ייחודי לכל קלט
+                    const offsetX = idx * 10; // היסט של 10px לכל חוט קלט
+                    
                     // connect rail to this gate input
-                    connectRailToGate(inp, gX, inputY);
+                    connectRailToGate(inp, gX, inputY, offsetX); // <-- העברת ההיסט
                 });
 
                 // Draw gate symbol
@@ -1096,8 +1102,8 @@ endmodule`;
                 const wireName = line.getAttribute('data-wire');
                 if (wireName && values.hasOwnProperty(wireName)) {
                     const value = values[wireName];
-                    
-                    // ⭐ שינוי מרכזי: הוסרו הקווים שדרסו את צבע ה-stroke של החוט.
+
+                    // ⭐ FIX 5: הוסרו הקווים שמחליפים את צבע ה-stroke של החוט.
                     // רק ההילה (drop-shadow) תשתנה, וצבע החוט הייחודי יישמר.
 
                     // החל סגנון הילה (glow)
