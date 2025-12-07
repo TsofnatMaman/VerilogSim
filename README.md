@@ -1,4 +1,4 @@
-# MyVerilogSim
+# Verilog Visualization Simulator
 
 MyVerilogSim is a lightweight educational simulator for the Verilog Hardware Description Language (HDL).
 It provides a minimal yet functional environment to parse and execute simple Verilog modules,
