@@ -126,19 +126,39 @@ export function drawCircuitDiagram(netlist) {
         }
     });
 
+    // חישוב נקודות הפיצול (taps) לכל חוט
+    const wireTapPositions = {};
+    Array.from(allWires).forEach(w => {
+        wireTapPositions[w] = [];
+    });
+
+    const depthLaneTracker = {};
+    netlist.forEach(gate => {
+        if (gate.type === 'IDENTITY') return;
+        const d = depthMemo[gate.output] || 0;
+        const gX = cols[Math.min(d, cols.length - 1)];
+
+        const LANE_SPACING = 30;
+        gate.inputs.forEach((inp, idx) => {
+            if (!depthLaneTracker[d]) depthLaneTracker[d] = 0;
+            const laneIndex = depthLaneTracker[d]++;
+            const totalOffsetX = 20 + (laneIndex * LANE_SPACING);
+            const baseTapX = gX - 40;
+            const railTapX = baseTapX - totalOffsetX;
+            
+            wireTapPositions[inp].push(railTapX);
+        });
+    });
+
+    // חישוב נקודת הסיום של כל rail - הנקודה הימנית ביותר מבין כל ה-taps שלו
     const wireConsumerX = {};
     Array.from(allWires).forEach(w => {
         let maxX = wireProducerX[w];
         if (outputs.includes(w)) {
             maxX = cols[cols.length - 1];
-        } else {
-            netlist.forEach(gate => {
-                if (gate.inputs.includes(w)) {
-                    const gateDepth = depthMemo[gate.output] || 0;
-                    const gateX = cols[Math.min(gateDepth, cols.length - 1)];
-                    maxX = Math.max(maxX, gateX - 45);
-                }
-            });
+        } else if (wireTapPositions[w].length > 0) {
+            // הנקודה הימנית ביותר היא ה-tap עם ה-X המקסימלי
+            maxX = Math.max(...wireTapPositions[w]);
         }
         wireConsumerX[w] = maxX;
     });
@@ -174,7 +194,11 @@ export function drawCircuitDiagram(netlist) {
 
     Array.from(allWires).forEach(w => {
         const y = wireY[w];
-        const xStart = wireProducerX[w] + 12;
+        
+        // הוספת התיקון להתחלת חוט הקלט - מזיזים ימינה כדי לא לכסות את הטקסט
+        const isPrimaryInput = !gatesByOutput[w];
+        const xStart = isPrimaryInput ? 55 : wireProducerX[w] + 12;
+
         const xEnd = wireConsumerX[w];
 
         if (xEnd > xStart) {
@@ -187,18 +211,9 @@ export function drawCircuitDiagram(netlist) {
             rail.setAttribute('stroke-width', '3');
             rail.setAttribute('stroke-linecap', 'round');
             rail.setAttribute('data-wire', w);
-            rail.classList.add('wire-glow-0');
+            // rail.classList.add('wire-glow-0');
             railsGroup.appendChild(rail);
         }
-
-        const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        dot.setAttribute('cx', wireProducerX[w]);
-        dot.setAttribute('cy', y);
-        dot.setAttribute('r', '9');
-        dot.setAttribute('fill', segmentColor[w]);
-        dot.setAttribute('stroke', '#fff');
-        dot.setAttribute('stroke-width', '2');
-        portsGroup.appendChild(dot);
     });
 
     function connectRailToGate(wireName, gateX, gateInputY, offsetX = 0) {
@@ -216,7 +231,7 @@ export function drawCircuitDiagram(netlist) {
         v.setAttribute('stroke-width', '3');
         v.setAttribute('stroke-linecap', 'round');
         v.setAttribute('data-wire', wireName);
-        v.classList.add('wire-glow-0');
+        // v.classList.add('wire-glow-0');
         wiresGroup.appendChild(v);
 
         const h2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
@@ -227,7 +242,7 @@ export function drawCircuitDiagram(netlist) {
         h2.setAttribute('stroke', color);
         h2.setAttribute('stroke-width', '3');
         h2.setAttribute('data-wire', wireName);
-        h2.classList.add('wire-glow-0');
+        // h2.classList.add('wire-glow-0');
         wiresGroup.appendChild(h2);
 
         const tap = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
@@ -240,7 +255,8 @@ export function drawCircuitDiagram(netlist) {
         wiresGroup.appendChild(tap);
     }
 
-    const depthLaneTracker = {};
+    // איפוס depthLaneTracker לשימוש בציור בפועל
+    Object.keys(depthLaneTracker).forEach(k => depthLaneTracker[k] = 0);
 
     netlist.forEach(gate => {
         if (gate.type === 'IDENTITY') {
@@ -280,7 +296,7 @@ export function drawCircuitDiagram(netlist) {
     inputs.forEach(i => {
         const y = wireY[i];
         const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        txt.setAttribute('x', 40);
+        txt.setAttribute('x', 50);
         txt.setAttribute('y', y + 5);
         txt.setAttribute('text-anchor', 'end');
         txt.setAttribute('font-size', '13');
@@ -288,6 +304,15 @@ export function drawCircuitDiagram(netlist) {
         txt.setAttribute('fill', '#1976d2');
         txt.textContent = i;
         portsGroup.appendChild(txt);
+        
+        const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        dot.setAttribute('cx', 55);
+        dot.setAttribute('cy', y);
+        dot.setAttribute('r', '4');
+        dot.setAttribute('fill', segmentColor[i]);
+        dot.setAttribute('stroke', '#fff');
+        dot.setAttribute('stroke-width', '1.5');
+        portsGroup.appendChild(dot);
     });
 
     outputs.forEach(o => {
@@ -320,7 +345,7 @@ function drawGateSymbol(layer, x, y, gateType, label) {
         'AND': { fill: '#4CAF50', icon: 'AND' },
         'OR': { fill: '#2196F3', icon: 'OR' },
         'XOR': { fill: '#FF9800', icon: 'XOR' },
-        'NOT': { fill: '#F44336', icon: '¬' },
+        'NOT': { fill: '#F44336', icon: 'NOT' },
         'NAND': { fill: '#9C27B0', icon: 'NAND' },
         'NOR': { fill: '#00BCD4', icon: 'NOR' },
         'IDENTITY': { fill: '#607D8B', icon: '=' },

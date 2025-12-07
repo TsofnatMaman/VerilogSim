@@ -39,8 +39,16 @@ function applyStylingAndInteractions(values) {
         if (wireName && values.hasOwnProperty(wireName)) {
             const value = values[wireName];
 
-            line.classList.remove('wire-glow-0', 'wire-glow-1');
-            line.classList.add(value ? 'wire-glow-1' : 'wire-glow-0');
+            // הסרת כל המחלקות
+            line.classList.remove('wire-glow-0', 'wire-glow-1', 'wire-no-glow');
+            
+            // הוספת המחלקה המתאימה
+            if (value === '?' || value === undefined || value === null) {
+                line.classList.add('wire-no-glow');  // ללא הילה
+            } else {
+                line.classList.add(value ? 'wire-glow-1' : 'wire-glow-0');
+            }
+            
             line.classList.remove('wire-highlight');
 
             line.onmouseover = (e) => showTooltip(e, wireName);
